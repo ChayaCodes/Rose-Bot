@@ -842,7 +842,7 @@ class WhatsAppBot:
         
         # ===== LANGUAGE COMMAND =====
         
-        elif command == 'setlang':
+        elif command == 'setlang' or command == 'lang':
             if not is_admin(chat_id, from_id, self.client):
                 msg = get_text(chat_id, 'admin_only')
                 self.client.send_message(chat_id, msg)
@@ -897,6 +897,16 @@ class WhatsAppBot:
         msg += '''\n/lock <type> - Lock links/stickers/media (admin)
 /unlock <type> - Unlock (admin)
 /locks - Show current locks\n\n'''
+
+        # Language section
+        if lang == 'he':
+            msg += '''🌍 *שפה:*
+/lang - הצג שפה נוכחית
+/lang he|en - שנה שפה (מנהל)\n\n'''
+        else:
+            msg += '''🌍 *Language:*
+/lang - Show current language
+/lang he|en - Change language (admin)\n\n'''
         
         msg += get_text(chat_id, 'help_ai')
         msg += '''\n/aimod on|off - Enable/disable AI moderation (admin)
