@@ -233,6 +233,55 @@ TRANSLATIONS = {
         'warn_limit_set': '✅ מגבלת אזהרות הוגדרה ל-{limit}',
         'locked': '🔒 {lock_type} ננעל',
         'unlocked': '🔓 {lock_type} נפתח',
+        
+        # AI Help
+        'aihelp_full': '''🤖 *מדריך AI Moderation*
+
+📝 *פקודות זמינות:*
+• /aimod on|​off - הפעל/כבה (מנהל)
+• /aimodstatus - בדוק הגדרות
+• /aimodbackend <backend> - החלף מנוע (מנהל)
+• /aimodkey <backend> <key> - הגדר API key (מנהל)
+• /aimodset <קטגוריה> <מספר> - כוונן רגישות (מנהל)
+
+🔧 *מנועות זמינים:*
+
+📋 *rules* (ברירת מחדל)
+   • שפות: עברית + אנגלית
+   • עלות: חינם
+   • API Key: לא נדרש
+
+🌍 *perspective* (מומלץ לעברית!)
+   • שפות: עברית + אנגלית
+   • עלות: חינם (1 QPS)
+   • קבל API Key: https://perspectiveapi.com
+   • הגדרה: /aimodkey perspective <key>
+
+☁️ *azure* (מדויק מאוד)
+   • שפות: עברית + אנגלית
+   • עלות: חינם עד 5,000/חודש
+   • קבל API Key: Azure Portal
+   • הגדרה: /aimodkey azure <key>
+
+🤖 *openai*
+   • שפות: אנגלית (בעיקר)
+   • עלות: חינם (free tier)
+   • קבל API Key: platform.openai.com
+   • הגדרה: /aimodkey openai <key>
+
+💻 *detoxify*
+   • שפות: אנגלית
+   • עלות: חינם (מקומי)
+   • API Key: לא נדרש
+   • דרישה: pip install detoxify
+
+🎯 *קטגוריות לכיוון:*
+• toxicity - תוכן פוגעני
+• spam - ספאם
+• sexual - תוכן מיני
+• threat - איומים
+
+💡 דוגמה: /aimodset toxicity 70''',
     },
     'en': {
         # General
@@ -346,6 +395,55 @@ For better results, add a Perspective or Azure API key.
         'warn_limit_set': '✅ Warn limit set to {limit}',
         'locked': '🔒 {lock_type} locked',
         'unlocked': '🔓 {lock_type} unlocked',
+        
+        # AI Help
+        'aihelp_full': '''🤖 *AI Moderation Guide*
+
+📝 *Available Commands:*
+• /aimod on|​off - Enable/disable (admin)
+• /aimodstatus - Check settings
+• /aimodbackend <backend> - Change engine (admin)
+• /aimodkey <backend> <key> - Set API key (admin)
+• /aimodset <category> <num> - Adjust sensitivity (admin)
+
+🔧 *Available Backends:*
+
+📋 *rules* (default)
+   • Languages: Hebrew + English
+   • Cost: Free
+   • API Key: Not required
+
+🌍 *perspective* (recommended for Hebrew!)
+   • Languages: Hebrew + English
+   • Cost: Free (1 QPS)
+   • Get API Key: https://perspectiveapi.com
+   • Setup: /aimodkey perspective <key>
+
+☁️ *azure* (very accurate)
+   • Languages: Hebrew + English
+   • Cost: Free up to 5,000/month
+   • Get API Key: Azure Portal
+   • Setup: /aimodkey azure <key>
+
+🤖 *openai*
+   • Languages: English (mainly)
+   • Cost: Free (free tier)
+   • Get API Key: platform.openai.com
+   • Setup: /aimodkey openai <key>
+
+💻 *detoxify*
+   • Languages: English
+   • Cost: Free (local)
+   • API Key: Not required
+   • Requires: pip install detoxify
+
+🎯 *Categories to adjust:*
+• toxicity - Offensive content
+• spam - Spam messages
+• sexual - Adult content
+• threat - Threats
+
+💡 Example: /aimodset toxicity 70''',
     }
 }
 
@@ -872,6 +970,9 @@ class WhatsAppBot:
                 return
             self.cmd_aimodbackend(chat_id, args)
         
+        elif command == 'aihelp':
+            self.cmd_aihelp(chat_id)
+        
         # ===== LANGUAGE COMMAND =====
         
         elif command == 'setlang' or command == 'lang':
@@ -941,26 +1042,12 @@ class WhatsAppBot:
 /lang he|en - Change language (admin)\n\n'''
         
         msg += get_text(chat_id, 'help_ai')
-        msg += '''\n/aimod on|off - Enable/disable AI moderation (admin)
+        msg += '''
+/aimod on|off - Enable/disable AI moderation (admin)
 /aimodstatus - Check AI settings
-/aimodbackend <backend> - Set AI engine (admin)
-/aimodkey <backend> <key> - Set API key (admin)
-/aimodset <category> <num> - Adjust sensitivity (admin)\n\n'''
-        
-        if lang == 'he':
-            msg += '''💡 *AI Moderation זמין ב-5 מנועות:*
-   • 📋 rules - עברית (ברירת מחדל, ללא עלות)
-   • 🌍 perspective - עברית (מומלץ, חינם)
-   • ☁️ azure - עברית (מדויק, חינם עד 5K)
-   • 🤖 openai - אנגלית (חינם)
-   • 💻 detoxify - אנגלית (מקומי)\n\n'''
-        else:
-            msg += '''💡 *AI Moderation available with 5 engines:*
-   • 📋 rules - Hebrew (default, no cost)
-   • 🌍 perspective - Hebrew (recommended, free)
-   • ☁️ azure - Hebrew (accurate, free up to 5K)
-   • 🤖 openai - English (free)
-   • 💻 detoxify - English (local)\n\n'''
+/aihelp - Detailed AI moderation guide
+
+'''
         
         msg += get_text(chat_id, 'help_note')
         self.client.send_message(chat_id, msg)
@@ -1212,6 +1299,12 @@ Example: /aimodset spam 70"""
             chat_id,
             f"✅ {category.title()} threshold set to {threshold}%"
         )
+    
+    def cmd_aihelp(self, chat_id: str):
+        """Show detailed AI moderation help"""
+        lang = get_chat_lang(chat_id)
+        msg = get_text(chat_id, 'aihelp_full')
+        self.client.send_message(chat_id, msg)
     
     def cmd_aimodstatus(self, chat_id: str):
         """Show AI moderation status"""

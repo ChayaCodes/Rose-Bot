@@ -120,6 +120,55 @@ TRANSLATIONS = {
         'usage_setwelcome': '❌ שימוש: /setwelcome <הודעה>\n\nתוכל להשתמש ב-{mention} לתיוג משתמשים חדשים',
         'usage_addblacklist': '❌ שימוש: /addblacklist <מילה>',
         'usage_rmblacklist': '❌ שימוש: /rmblacklist <מילה>',
+        
+        # AI Help
+        'aihelp_full': '''🤖 *מדריך AI Moderation*
+
+📝 *פקודות זמינות:*
+• /aimod on|​off - הפעל/כבה (מנהל)
+• /aimodstatus - בדוק הגדרות
+• /aimodbackend <backend> - החלף מנוע (מנהל)
+• /aimodkey <backend> <key> - הגדר API key (מנהל)
+• /aimodset <קטגוריה> <מספר> - כוונן רגישות (מנהל)
+
+🔧 *מנועות זמינים:*
+
+📋 *rules* (ברירת מחדל)
+   • שפות: עברית + אנגלית
+   • עלות: חינם
+   • API Key: לא נדרש
+
+🌍 *perspective* (מומלץ לעברית!)
+   • שפות: עברית + אנגלית
+   • עלות: חינם (1 QPS)
+   • קבל API Key: https://perspectiveapi.com
+   • הגדרה: /aimodkey perspective <key>
+
+☁️ *azure* (מדויק מאוד)
+   • שפות: עברית + אנגלית
+   • עלות: חינם עד 5,000/חודש
+   • קבל API Key: Azure Portal
+   • הגדרה: /aimodkey azure <key>
+
+🤖 *openai*
+   • שפות: אנגלית (בעיקר)
+   • עלות: חינם (free tier)
+   • קבל API Key: platform.openai.com
+   • הגדרה: /aimodkey openai <key>
+
+💻 *detoxify*
+   • שפות: אנגלית
+   • עלות: חינם (מקומי)
+   • API Key: לא נדרש
+   • דרישה: pip install detoxify
+
+🎯 *קטגוריות לכיוון:*
+• toxicity - תוכן פוגעני
+• spam - ספאם
+• sexual - תוכן מיני
+• threat - איומים
+
+💡 דוגמה: /aimodset toxicity 70''',
     },
     'en': {
         # General
@@ -228,6 +277,55 @@ For better results, add a Perspective or Azure API key.
         'usage_setwelcome': '❌ Usage: /setwelcome <message>\n\nYou can use {mention} to mention new users',
         'usage_addblacklist': '❌ Usage: /addblacklist <word>',
         'usage_rmblacklist': '❌ Usage: /rmblacklist <word>',
+        
+        # AI Help
+        'aihelp_full': '''🤖 *AI Moderation Guide*
+
+📝 *Available Commands:*
+• /aimod on|​off - Enable/disable (admin)
+• /aimodstatus - Check settings
+• /aimodbackend <backend> - Change engine (admin)
+• /aimodkey <backend> <key> - Set API key (admin)
+• /aimodset <category> <num> - Adjust sensitivity (admin)
+
+🔧 *Available Backends:*
+
+📋 *rules* (default)
+   • Languages: Hebrew + English
+   • Cost: Free
+   • API Key: Not required
+
+🌍 *perspective* (recommended for Hebrew!)
+   • Languages: Hebrew + English
+   • Cost: Free (1 QPS)
+   • Get API Key: https://perspectiveapi.com
+   • Setup: /aimodkey perspective <key>
+
+☁️ *azure* (very accurate)
+   • Languages: Hebrew + English
+   • Cost: Free up to 5,000/month
+   • Get API Key: Azure Portal
+   • Setup: /aimodkey azure <key>
+
+🤖 *openai*
+   • Languages: English (mainly)
+   • Cost: Free (free tier)
+   • Get API Key: platform.openai.com
+   • Setup: /aimodkey openai <key>
+
+💻 *detoxify*
+   • Languages: English
+   • Cost: Free (local)
+   • API Key: Not required
+   • Requires: pip install detoxify
+
+🎯 *Categories to adjust:*
+• toxicity - Offensive content
+• spam - Spam messages
+• sexual - Adult content
+• threat - Threats
+
+💡 Example: /aimodset toxicity 70''',
     }
 }
 
