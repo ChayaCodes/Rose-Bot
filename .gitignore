@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+.virtualenvs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Config files with sensitive data
+wa_config.py
+config.py
+
+# Logs
+*.log
+logs/
+
+# WhatsApp session data
+.wwebjs_auth/
+.wwebjs_cache/
+whatsapp-bot-session/
+
+# Node modules
+node_modules/
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+tmp/
+temp/
+
+# API Keys and Secrets
+*.key
+*.pem
+.env
+.env.local
+secrets/
