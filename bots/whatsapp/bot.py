@@ -2048,6 +2048,35 @@ Example: /aimodset spam 70"""
         msg = get_text(chat_id, 'lang_changed', lang=lang_code, lang_name=lang_name)
         self.client.send_message(chat_id, msg)
     
+    def handle_group_join(self, event: dict):
+        """Handle group join event - send welcome message"""
+        try:
+            chat_id = event.get('chatId')
+            participants = event.get('participants', [])
+            
+            if not chat_id or not participants:
+                return
+            
+            logger.info(f"Group join event in {chat_id}: {participants}")
+            
+            # Get welcome message for this chat
+            welcome_msg = get_welcome(chat_id)
+            if not welcome_msg:
+                return
+            
+            # Send welcome for each participant
+            for participant_id in participants:
+                # Extract phone number for mention
+                phone = participant_id.replace('@c.us', '').replace('@lid', '')
+                
+                # Replace {mention} with the participant mention
+                message = welcome_msg.replace('{mention}', f'@{phone}')
+                
+                self.client.send_message(chat_id, message)
+                logger.info(f"Sent welcome message to {participant_id}")
+        except Exception as e:
+            logger.error(f"Error handling group join: {e}")
+    
     def run(self):
         """Start the bot"""
         logger.info("Starting WhatsApp Bot...")
@@ -2055,6 +2084,9 @@ Example: /aimodset spam 70"""
         
         # Register message handler
         self.client.on_message(self.handle_message)
+        
+        # Register group join handler for welcome messages
+        self.client.on_group_join(self.handle_group_join)
         
         # Start callback server
         logger.info("Starting callback server on port 5000...")

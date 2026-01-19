@@ -112,6 +112,61 @@ client.on('disconnected', (reason) => {
     isReady = false;
 });
 
+// Group participant joined/added event
+client.on('group_join', async (notification) => {
+    console.log('Group join notification:', notification);
+    
+    // Forward to Python
+    if (pythonCallbackUrl) {
+        try {
+            const fetch = require('node-fetch');
+            
+            // Get the participant IDs who joined
+            const participantIds = notification.recipientIds || [];
+            
+            await fetch(pythonCallbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'group_join',
+                    chatId: notification.chatId,
+                    participants: participantIds,
+                    author: notification.author  // Who added them (if added by admin)
+                })
+            });
+        } catch (error) {
+            console.error('Error forwarding group_join to Python:', error);
+        }
+    }
+});
+
+// Group participant left/removed event
+client.on('group_leave', async (notification) => {
+    console.log('Group leave notification:', notification);
+    
+    // Forward to Python
+    if (pythonCallbackUrl) {
+        try {
+            const fetch = require('node-fetch');
+            
+            const participantIds = notification.recipientIds || [];
+            
+            await fetch(pythonCallbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'group_leave',
+                    chatId: notification.chatId,
+                    participants: participantIds,
+                    author: notification.author
+                })
+            });
+        } catch (error) {
+            console.error('Error forwarding group_leave to Python:', error);
+        }
+    }
+});
+
 // Initialize client
 client.initialize();
 

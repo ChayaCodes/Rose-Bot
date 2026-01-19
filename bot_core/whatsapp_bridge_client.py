@@ -23,6 +23,8 @@ class WhatsAppBridgeClient:
         self.bridge_url = bridge_url.rstrip('/')
         self.callback_port = callback_port
         self.message_handlers = []
+        self.group_join_handlers = []
+        self.group_leave_handlers = []
         self.flask_app = None
         self.flask_thread = None
         
@@ -33,13 +35,27 @@ class WhatsAppBridgeClient:
         @self.flask_app.route('/webhook', methods=['POST'])
         def webhook():
             data = flask_request.json
-            if data.get('type') == 'message':
+            event_type = data.get('type', 'message')
+            
+            if event_type == 'message':
                 msg_data = data.get('data', {})
                 for handler in self.message_handlers:
                     try:
                         handler(msg_data)
                     except Exception as e:
                         logger.error(f"Error in message handler: {e}")
+            elif event_type == 'group_join':
+                for handler in self.group_join_handlers:
+                    try:
+                        handler(data)
+                    except Exception as e:
+                        logger.error(f"Error in group_join handler: {e}")
+            elif event_type == 'group_leave':
+                for handler in self.group_leave_handlers:
+                    try:
+                        handler(data)
+                    except Exception as e:
+                        logger.error(f"Error in group_leave handler: {e}")
             return {'status': 'ok'}
         
         # Run Flask in a separate thread
@@ -199,3 +215,11 @@ class WhatsAppBridgeClient:
     def on_message(self, handler: Callable):
         """Register message handler"""
         self.message_handlers.append(handler)
+    
+    def on_group_join(self, handler: Callable):
+        """Register group join handler"""
+        self.group_join_handlers.append(handler)
+    
+    def on_group_leave(self, handler: Callable):
+        """Register group leave handler"""
+        self.group_leave_handlers.append(handler)
