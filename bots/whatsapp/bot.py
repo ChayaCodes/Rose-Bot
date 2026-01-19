@@ -1228,6 +1228,10 @@ class WhatsAppBot:
     
     def _process_command(self, command: str, args: str, from_id: str, chat_id: str, is_group: bool, message: dict):
         """Process the actual command"""
+        # Extract quoted message if exists
+        quoted_msg = message.get('quotedMsg')
+        quoted_participant = message.get('quotedParticipant')
+        
         # ===== GENERAL COMMANDS =====
         
         if command == 'start':
