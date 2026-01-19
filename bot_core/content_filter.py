@@ -66,6 +66,7 @@ class ContentModerator:
         self.api_key = api_key or os.getenv(f'{backend.upper()}_API_KEY')
         self.ai_model = None
         self.client = None
+        self.use_ai = False  # Will be set to True if AI model loads successfully
         
         if backend == 'detoxify':
             self._init_detoxify()

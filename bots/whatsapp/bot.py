@@ -212,11 +212,27 @@ TRANSLATIONS = {
 
 📚 למידע נוסף: AI_MODERATION_SETUP.md''',
         'aimod_disabled': '❌ AI Moderation כבוי',
+        'aimod_threshold_invalid': '❌ הסף חייב להיות מספר בין 0-100',
         
         # Language
         'lang_changed': '✅ השפה שונתה ל-{lang}!\n🌍 כל ההודעות יהיו עכשיו ב{lang_name}',
         'lang_current': 'ℹ️ השפה הנוכחית: {lang_name}\n\nזמין: עברית (he), English (en)',
         'lang_invalid': '❌ קוד שפה לא חוקי. זמין: he, en',
+        
+        # Ping
+        'pong': '🏓 פונג!',
+        
+        # Usage messages
+        'usage_setrules': '❌ שימוש: /setrules <טקסט חוקים>',
+        'usage_setwarn': '❌ שימוש: /setwarn <מספר>\n\nדוגמה: /setwarn 3',
+        'usage_setwelcome': '❌ שימוש: /setwelcome <הודעה>\n\nתוכל להשתמש ב-{mention} לתיוג משתמשים חדשים',
+        'usage_addblacklist': '❌ שימוש: /addblacklist <מילה>',
+        'usage_rmblacklist': '❌ שימוש: /rmblacklist <מילה>',
+        'usage_lock': '❌ שימוש: /lock <סוג>\n\nסוגים זמינים: links, stickers, media',
+        'usage_unlock': '❌ שימוש: /unlock <סוג>\n\nסוגים זמינים: links, stickers, media',
+        'warn_limit_set': '✅ מגבלת אזהרות הוגדרה ל-{limit}',
+        'locked': '🔒 {lock_type} ננעל',
+        'unlocked': '🔓 {lock_type} נפתח',
     },
     'en': {
         # General
@@ -309,11 +325,27 @@ For better results, add a Perspective or Azure API key.
 
 📚 More info: AI_MODERATION_SETUP.md''',
         'aimod_disabled': '❌ AI Moderation disabled',
+        'aimod_threshold_invalid': '❌ Threshold must be a number between 0-100',
         
         # Language
         'lang_changed': '✅ Language changed to {lang}!\n🌍 All messages will now be in {lang_name}',
         'lang_current': 'ℹ️ Current language: {lang_name}\n\nAvailable: עברית (he), English (en)',
         'lang_invalid': '❌ Invalid language code. Available: he, en',
+        
+        # Ping
+        'pong': '🏓 Pong!',
+        
+        # Usage messages
+        'usage_setrules': '❌ Usage: /setrules <rules text>',
+        'usage_setwarn': '❌ Usage: /setwarn <number>\n\nExample: /setwarn 3',
+        'usage_setwelcome': '❌ Usage: /setwelcome <message>\n\nYou can use {mention} to mention new users',
+        'usage_addblacklist': '❌ Usage: /addblacklist <word>',
+        'usage_rmblacklist': '❌ Usage: /rmblacklist <word>',
+        'usage_lock': '❌ Usage: /lock <type>\n\nValid types: links, stickers, media',
+        'usage_unlock': '❌ Usage: /unlock <type>\n\nValid types: links, stickers, media',
+        'warn_limit_set': '✅ Warn limit set to {limit}',
+        'locked': '🔒 {lock_type} locked',
+        'unlocked': '🔓 {lock_type} unlocked',
     }
 }
 
@@ -716,7 +748,7 @@ class WhatsAppBot:
             self.cmd_info(chat_id, from_id)
         
         elif command == 'ping':
-            self.client.send_message(chat_id, "🏓 Pong!")
+            self.client.send_message(chat_id, get_text(chat_id, 'pong'))
         
         # ===== RULES COMMANDS =====
         
@@ -725,7 +757,7 @@ class WhatsAppBot:
         
         elif command == 'setrules':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can set rules")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_setrules(chat_id, args)
         
@@ -733,7 +765,7 @@ class WhatsAppBot:
         
         elif command == 'warn':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can warn users")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_warn(chat_id, from_id, args, message)
         
@@ -742,13 +774,13 @@ class WhatsAppBot:
         
         elif command == 'resetwarns':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can reset warns")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_resetwarns(chat_id, message)
         
         elif command == 'setwarn':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can change warn settings")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_setwarn(chat_id, args)
         
@@ -756,13 +788,13 @@ class WhatsAppBot:
         
         elif command == 'kick':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can kick users")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_kick(chat_id, message)
         
         elif command == 'ban':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can ban users")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_ban(chat_id, message)
         
@@ -770,7 +802,7 @@ class WhatsAppBot:
         
         elif command == 'setwelcome':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can set welcome message")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_setwelcome(chat_id, args)
         
@@ -784,13 +816,13 @@ class WhatsAppBot:
         
         elif command == 'addblacklist':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can add blacklist words")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_addblacklist(chat_id, args)
         
         elif command == 'rmblacklist':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can remove blacklist words")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_rmblacklist(chat_id, args)
         
@@ -798,13 +830,13 @@ class WhatsAppBot:
         
         elif command == 'lock':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can set locks")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_lock(chat_id, args)
         
         elif command == 'unlock':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can remove locks")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_unlock(chat_id, args)
         
@@ -815,13 +847,13 @@ class WhatsAppBot:
         
         elif command == 'aimod':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can manage AI moderation")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_aimod(chat_id, args)
         
         elif command == 'aimodset':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can configure AI moderation")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_aimodset(chat_id, args)
         
@@ -830,13 +862,13 @@ class WhatsAppBot:
         
         elif command == 'aimodkey':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can set API keys")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_aimodkey(chat_id, args)
         
         elif command == 'aimodbackend':
             if not is_admin(chat_id, from_id, self.client):
-                self.client.send_message(chat_id, "❌ Only admins can set backend")
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_aimodbackend(chat_id, args)
         
@@ -966,11 +998,11 @@ class WhatsAppBot:
     def cmd_setrules(self, chat_id: str, rules_text: str):
         """Set rules"""
         if not rules_text:
-            self.client.send_message(chat_id, "❌ Usage: /setrules <rules text>")
+            self.client.send_message(chat_id, get_text(chat_id, 'usage_setrules'))
             return
         
         set_rules(chat_id, rules_text)
-        self.client.send_message(chat_id, "✅ Rules set successfully!\n\nUsers can view them with /rules")
+        self.client.send_message(chat_id, get_text(chat_id, 'rules_set'))
     
     def cmd_warn(self, chat_id: str, warner_id: str, reason: str, message: dict):
         """Warn a user"""
@@ -1011,9 +1043,9 @@ class WhatsAppBot:
             if limit < 1:
                 raise ValueError
             set_warn_limit(chat_id, limit)
-            self.client.send_message(chat_id, f"✅ Warn limit set to {limit}")
+            self.client.send_message(chat_id, get_text(chat_id, 'warn_limit_set', limit=limit))
         except:
-            self.client.send_message(chat_id, "❌ Usage: /setwarn <number>\n\nExample: /setwarn 3")
+            self.client.send_message(chat_id, get_text(chat_id, 'usage_setwarn'))
     
     def cmd_kick(self, chat_id: str, message: dict):
         """Kick user"""
@@ -1032,11 +1064,11 @@ class WhatsAppBot:
     def cmd_setwelcome(self, chat_id: str, welcome_text: str):
         """Set welcome message"""
         if not welcome_text:
-            self.client.send_message(chat_id, "❌ Usage: /setwelcome <message>\n\nYou can use {mention} to mention new users")
+            self.client.send_message(chat_id, get_text(chat_id, 'usage_setwelcome'))
             return
         
         set_welcome(chat_id, welcome_text)
-        self.client.send_message(chat_id, "✅ Welcome message set!\n\nNew members will see this message when they join.")
+        self.client.send_message(chat_id, get_text(chat_id, 'welcome_set'))
     
     def cmd_welcome(self, chat_id: str):
         """Show welcome message"""
@@ -1059,46 +1091,40 @@ class WhatsAppBot:
     def cmd_addblacklist(self, chat_id: str, word: str):
         """Add word to blacklist"""
         if not word:
-            self.client.send_message(chat_id, "❌ Usage: /addblacklist <word>")
+            self.client.send_message(chat_id, get_text(chat_id, 'usage_addblacklist'))
             return
         
         add_blacklist(chat_id, word)
-        self.client.send_message(chat_id, f"✅ Added '{word}' to blacklist")
+        self.client.send_message(chat_id, get_text(chat_id, 'blacklist_added', word=word))
     
     def cmd_rmblacklist(self, chat_id: str, word: str):
         """Remove word from blacklist"""
         if not word:
-            self.client.send_message(chat_id, "❌ Usage: /rmblacklist <word>")
+            self.client.send_message(chat_id, get_text(chat_id, 'usage_rmblacklist'))
             return
         
         remove_blacklist(chat_id, word)
-        self.client.send_message(chat_id, f"✅ Removed '{word}' from blacklist")
+        self.client.send_message(chat_id, get_text(chat_id, 'blacklist_removed', word=word))
     
     def cmd_lock(self, chat_id: str, lock_type: str):
         """Lock a type"""
         valid_types = ['links', 'stickers', 'media']
         if lock_type.lower() not in valid_types:
-            self.client.send_message(
-                chat_id,
-                f"❌ Usage: /lock <type>\n\nValid types: {', '.join(valid_types)}"
-            )
+            self.client.send_message(chat_id, get_text(chat_id, 'usage_lock'))
             return
         
         set_lock(chat_id, lock_type.lower(), True)
-        self.client.send_message(chat_id, f"🔒 Locked {lock_type}")
+        self.client.send_message(chat_id, get_text(chat_id, 'locked', lock_type=lock_type))
     
     def cmd_unlock(self, chat_id: str, lock_type: str):
         """Unlock a type"""
         valid_types = ['links', 'stickers', 'media']
         if lock_type.lower() not in valid_types:
-            self.client.send_message(
-                chat_id,
-                f"❌ Usage: /unlock <type>\n\nValid types: {', '.join(valid_types)}"
-            )
+            self.client.send_message(chat_id, get_text(chat_id, 'usage_unlock'))
             return
         
         set_lock(chat_id, lock_type.lower(), False)
-        self.client.send_message(chat_id, f"🔓 Unlocked {lock_type}")
+        self.client.send_message(chat_id, get_text(chat_id, 'unlocked', lock_type=lock_type))
     
     def cmd_locks(self, chat_id: str):
         """Show current locks"""
@@ -1170,7 +1196,7 @@ Example: /aimodset spam 70"""
             if threshold < 0 or threshold > 100:
                 raise ValueError
         except:
-            self.client.send_message(chat_id, "❌ Threshold must be a number between 0-100")
+            self.client.send_message(chat_id, get_text(chat_id, 'aimod_threshold_invalid'))
             return
         
         valid_categories = ['toxicity', 'spam', 'sexual', 'threat']

@@ -104,11 +104,22 @@ TRANSLATIONS = {
 
 📚 למידע נוסף: AI_MODERATION_SETUP.md''',
         'aimod_disabled': '❌ AI Moderation כבוי',
+        'aimod_threshold_invalid': '❌ הסף חייב להיות מספר בין 0-100',
         
         # Language
         'lang_changed': '✅ השפה שונתה ל-{lang}!\n🌍 כל ההודעות יהיו עכשיו ב{lang_name}',
         'lang_current': 'ℹ️ השפה הנוכחית: {lang_name}\n\nזמין: עברית (he), English (en)',
         'lang_invalid': '❌ קוד שפה לא חוקי. זמין: he, en',
+        
+        # Ping
+        'pong': '🏓 פונג!',
+        
+        # Usage messages
+        'usage_setrules': '❌ שימוש: /setrules <טקסט חוקים>',
+        'usage_setwarn': '❌ שימוש: /setwarn <מספר>\n\nדוגמה: /setwarn 3',
+        'usage_setwelcome': '❌ שימוש: /setwelcome <הודעה>\n\nתוכל להשתמש ב-{mention} לתיוג משתמשים חדשים',
+        'usage_addblacklist': '❌ שימוש: /addblacklist <מילה>',
+        'usage_rmblacklist': '❌ שימוש: /rmblacklist <מילה>',
     },
     'en': {
         # General
@@ -201,11 +212,22 @@ For better results, add a Perspective or Azure API key.
 
 📚 More info: AI_MODERATION_SETUP.md''',
         'aimod_disabled': '❌ AI Moderation disabled',
+        'aimod_threshold_invalid': '❌ Threshold must be a number between 0-100',
         
         # Language
         'lang_changed': '✅ Language changed to {lang}!\n🌍 All messages will now be in {lang_name}',
         'lang_current': 'ℹ️ Current language: {lang_name}\n\nAvailable: עברית (he), English (en)',
         'lang_invalid': '❌ Invalid language code. Available: he, en',
+        
+        # Ping
+        'pong': '🏓 Pong!',
+        
+        # Usage messages
+        'usage_setrules': '❌ Usage: /setrules <rules text>',
+        'usage_setwarn': '❌ Usage: /setwarn <number>\n\nExample: /setwarn 3',
+        'usage_setwelcome': '❌ Usage: /setwelcome <message>\n\nYou can use {mention} to mention new users',
+        'usage_addblacklist': '❌ Usage: /addblacklist <word>',
+        'usage_rmblacklist': '❌ Usage: /rmblacklist <word>',
     }
 }
 
