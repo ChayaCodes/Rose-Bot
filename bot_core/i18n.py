@@ -56,9 +56,9 @@ TRANSLATIONS = {
         'warn_limit_invalid': '❌ מספר לא תקין. שימוש: /setwarn <מספר>\nלדוגמה: /setwarn 5',
         
         # Moderation
-        'user_kicked': '👢 {user} נבעט מהקבוצה',
+        'user_kicked': '👢 {user} הוצא מהקבוצה',
         'user_banned': '🚫 {user} נחסם מהקבוצה',
-        'kick_failed': '❌ לא הצלחתי לבעוט את המשתמש',
+        'kick_failed': '❌ לא הצלחתי להוציא את המשתמש',
         'ban_failed': '❌ לא הצלחתי לחסום את המשתמש',
         
         # Welcome
@@ -86,7 +86,7 @@ TRANSLATIONS = {
         'aimod_enabled': '''✅ *AI Moderation הופעל!*
 
 הבוט יזהה אוטומטית:
-🤖 תוכן טוקסי/פוגעני
+🤖 תוכן רעיל/פוגעני
 🚫 ספאם
 🔞 תוכן מיני
 ⚠️ איומים
