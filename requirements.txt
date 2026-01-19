@@ -14,6 +14,10 @@ qrcode[pil]
 # Additional utilities for WhatsApp
 Pillow
 
+# AI moderation (detoxify backend)
+detoxify
+torch
+
 # For WhatsApp Web API:
 # Option 1: Install Node.js and run: npm install whatsapp-web.js
 # Then use Python subprocess/socket to communicate
