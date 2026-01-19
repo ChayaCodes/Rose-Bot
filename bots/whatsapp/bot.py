@@ -541,7 +541,7 @@ For better results, add a Perspective or Azure API key.
         'usage_rmblacklist': '❌ Usage: /rmblacklist <word>',
         'usage_lock': '❌ Usage: /lock <type>\n\nValid types: links, stickers, media',
         'usage_unlock': '❌ Usage: /unlock <type>\n\nValid types: links, stickers, media',
-        'usage_aimod': '❌ Usage: /aimod on|off\n\nExample: /aimod on',
+        'usage_aimod': '❌ Usage: /aimod [on|off]\n\n‼️ בלי פרמטר: מציג סטטוס נוכחי\nExample: /aimod on',
         'usage_aimodset': '''❌ Usage: /aimodset <category> <threshold>
 
 *Categories:*
@@ -725,7 +725,7 @@ COMMAND_HELP = {
         'locks': {'usage': '/locks', 'desc': 'הצג נעילות פעילות', 'example': '/locks', 'admin': False},
         'lang': {'usage': '/lang [he|en]', 'desc': 'הצג או שנה שפה', 'example': '/lang he', 'admin': True},
         'setlang': {'usage': '/setlang <he|en>', 'desc': 'שנה שפת הבוט', 'example': '/setlang en', 'admin': True},
-        'aimod': {'usage': '/aimod <on|off>', 'desc': 'הפעל/כבה מודרציית AI', 'example': '/aimod on', 'admin': True},
+        'aimod': {'usage': '/aimod [on|off]', 'desc': 'הפעל/כבה מודרציית AI או הצג סטטוס', 'example': '/aimod on', 'admin': True},
         'aimodstatus': {'usage': '/aimodstatus', 'desc': 'בדוק הגדרות AI', 'example': '/aimodstatus', 'admin': False},
         'aimodset': {'usage': '/aimodset <קטגוריה> <סף>', 'desc': 'כוונן רגישות AI (0-100)', 'example': '/aimodset toxicity 70', 'admin': True},
         'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'החלף מנוע AI', 'example': '/aimodbackend perspective', 'admin': True},
@@ -760,7 +760,7 @@ COMMAND_HELP = {
         'locks': {'usage': '/locks', 'desc': 'Show active locks', 'example': '/locks', 'admin': False},
         'lang': {'usage': '/lang [he|en]', 'desc': 'Show or change language', 'example': '/lang he', 'admin': True},
         'setlang': {'usage': '/setlang <he|en>', 'desc': 'Change bot language', 'example': '/setlang en', 'admin': True},
-        'aimod': {'usage': '/aimod <on|off>', 'desc': 'Enable/disable AI moderation', 'example': '/aimod on', 'admin': True},
+        'aimod': {'usage': '/aimod [on|off]', 'desc': 'Enable/disable AI moderation or show status', 'example': '/aimod on', 'admin': True},
         'aimodstatus': {'usage': '/aimodstatus', 'desc': 'Check AI settings', 'example': '/aimodstatus', 'admin': False},
         'aimodset': {'usage': '/aimodset <category> <threshold>', 'desc': 'Adjust AI sensitivity (0-100)', 'example': '/aimodset toxicity 70', 'admin': True},
         'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'Change AI engine', 'example': '/aimodbackend perspective', 'admin': True},
@@ -1232,7 +1232,7 @@ class WhatsAppBot:
             self.cmd_start(chat_id)
         
         elif command == 'help':
-            self.cmd_help(chat_id, is_owner(from_id), args)
+            self.cmd_help(chat_id, from_id, is_owner(from_id), args)
         
         elif command == 'info':
             self.cmd_info(chat_id, from_id)
@@ -1409,9 +1409,10 @@ class WhatsAppBot:
         msg = get_text(chat_id, 'start_msg')
         self.client.send_message(chat_id, msg)
     
-    def cmd_help(self, chat_id: str, is_owner: bool, args: str = ''):
+    def cmd_help(self, chat_id: str, from_id: str, is_owner: bool, args: str = ''):
         """Help command - show general help or specific command help"""
         lang = get_chat_lang(chat_id)
+        is_admin_user = is_admin(chat_id, from_id, self.client) or is_owner
         
         # If a specific command was requested
         if args:
@@ -1419,6 +1420,9 @@ class WhatsAppBot:
             cmd_data = COMMAND_HELP.get(lang, {}).get(cmd_name)
             
             if cmd_data:
+                if cmd_data['admin'] and not is_admin_user:
+                    self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
+                    return
                 msg = get_text(chat_id, 'help_cmd_header', cmd=cmd_name)
                 msg += get_text(chat_id, 'help_cmd_usage', usage=cmd_data['usage'])
                 msg += get_text(chat_id, 'help_cmd_desc', desc=cmd_data['desc'])
@@ -1437,45 +1441,58 @@ class WhatsAppBot:
             msg += '''\n/start - הפעל את הבוט
 /help - הצג הודעה זו
 /info - מידע על הבוט
-/ping - בדוק סטטוס
-/setlang <he|en> - שנה שפה\n\n'''
+/ping - בדוק סטטוס'''
+            if is_admin_user:
+                msg += '\n/setlang <he|en> - שנה שפה'
+            msg += '\n\n'
         else:
             msg += '''\n/start - Start the bot
 /help - Show this message
 /info - Bot information
-/ping - Check bot status
-/setlang <code> - Set language (he/en)\n\n'''
+/ping - Check bot status'''
+            if is_admin_user:
+                msg += '\n/setlang <code> - Set language (he/en)'
+            msg += '\n\n'
         
         msg += get_text(chat_id, 'help_rules')
         if lang == 'he':
-            msg += '''\n/rules - הצג חוקי קבוצה
-/setrules <טקסט> - הגדר חוקים (מנהל)\n\n'''
+            msg += '\n/rules - הצג חוקי קבוצה'
+            if is_admin_user:
+                msg += '\n/setrules <טקסט> - הגדר חוקים (מנהל)'
+            msg += '\n\n'
         else:
-            msg += '''\n/rules - Show group rules
-/setrules <text> - Set group rules (admin)\n\n'''
+            msg += '\n/rules - Show group rules'
+            if is_admin_user:
+                msg += '\n/setrules <text> - Set group rules (admin)'
+            msg += '\n\n'
         
         msg += get_text(chat_id, 'help_warns')
         if lang == 'he':
-            msg += '''\n/warn - אזהרה למשתמש (השב להודעה)
-/warns - בדוק אזהרות
-/resetwarns - אפס אזהרות (השב להודעה)
-/setwarn <מספר> - הגדר מגבלת אזהרות (מנהל)\n\n'''
+            msg += '\n/warns - בדוק אזהרות'
+            if is_admin_user:
+                msg += '\n/warn - אזהרה למשתמש (השב להודעה)'
+                msg += '\n/resetwarns - אפס אזהרות (השב להודעה)'
+                msg += '\n/setwarn <מספר> - הגדר מגבלת אזהרות (מנהל)'
+            msg += '\n\n'
         else:
-            msg += '''\n/warn - Warn a user (reply to message)
-/warns - Check user warns
-/resetwarns - Reset warns (reply to message)
-/setwarn <number> - Set warn limit (admin)\n\n'''
+            msg += '\n/warns - Check user warns'
+            if is_admin_user:
+                msg += '\n/warn - Warn a user (reply to message)'
+                msg += '\n/resetwarns - Reset warns (reply to message)'
+                msg += '\n/setwarn <number> - Set warn limit (admin)'
+            msg += '\n\n'
         
-        msg += get_text(chat_id, 'help_moderation')
-        if lang == 'he':
-            msg += '''\n/kick - בעט משתמש (השב להודעה)
+        if is_admin_user:
+            msg += get_text(chat_id, 'help_moderation')
+            if lang == 'he':
+                msg += '''\n/kick - בעט משתמש (השב להודעה)
 /ban - חסום משתמש (השב להודעה)
 /unban <טלפון> - בטל חסימה של משתמש
 /add <טלפון> - הוסף משתמש לקבוצה
 /invite - קבל קישור הזמנה לקבוצה
 /delcmds <on|off|status> - מחיקת פקודות\n\n'''
-        else:
-            msg += '''\n/kick - Kick user (reply to message)
+            else:
+                msg += '''\n/kick - Kick user (reply to message)
 /ban - Ban user (reply to message)
 /unban <phone> - Unban a user
 /add <phone> - Add user to group
@@ -1484,57 +1501,66 @@ class WhatsAppBot:
         
         msg += get_text(chat_id, 'help_welcome')
         if lang == 'he':
-            msg += '''\n/setwelcome <טקסט> - הגדר הודעת קבלת פנים (מנהל)
-/welcome - הצג הודעה נוכחית\n\n'''
+            msg += '\n/welcome - הצג הודעה נוכחית'
+            if is_admin_user:
+                msg += '\n/setwelcome <טקסט> - הגדר הודעת קבלת פנים (מנהל)'
+            msg += '\n\n'
         else:
-            msg += '''\n/setwelcome <text> - Set welcome message (admin)
-/welcome - Show current welcome\n\n'''
+            msg += '\n/welcome - Show current welcome'
+            if is_admin_user:
+                msg += '\n/setwelcome <text> - Set welcome message (admin)'
+            msg += '\n\n'
         
         msg += get_text(chat_id, 'help_blacklist')
         if lang == 'he':
-            msg += '''\n/blacklist - הצג מילים חסומות
-/addblacklist <מילה> - הוסף לרשימה (מנהל)
-/rmblacklist <מילה> - הסר מהרשימה (מנהל)\n\n'''
+            msg += '\n/blacklist - הצג מילים חסומות'
+            if is_admin_user:
+                msg += '\n/addblacklist <מילה> - הוסף לרשימה (מנהל)'
+                msg += '\n/rmblacklist <מילה> - הסר מהרשימה (מנהל)'
+            msg += '\n\n'
         else:
-            msg += '''\n/blacklist - Show blacklisted words
-/addblacklist <word> - Add word to blacklist (admin)
-/rmblacklist <word> - Remove from blacklist (admin)\n\n'''
+            msg += '\n/blacklist - Show blacklisted words'
+            if is_admin_user:
+                msg += '\n/addblacklist <word> - Add word to blacklist (admin)'
+                msg += '\n/rmblacklist <word> - Remove from blacklist (admin)'
+            msg += '\n\n'
         
         msg += get_text(chat_id, 'help_locks')
         if lang == 'he':
-            msg += '''\n/lock <סוג> - נעל links/stickers/media (מנהל)
-/unlock <סוג> - בטל נעילה (מנהל)
-/locks - הצג נעילות נוכחיות\n\n'''
+            msg += '\n/locks - הצג נעילות נוכחיות'
+            if is_admin_user:
+                msg += '\n/lock <סוג> - נעל links/stickers/media (מנהל)'
+                msg += '\n/unlock <סוג> - בטל נעילה (מנהל)'
+            msg += '\n\n'
         else:
-            msg += '''\n/lock <type> - Lock links/stickers/media (admin)
-/unlock <type> - Unlock (admin)
-/locks - Show current locks\n\n'''
+            msg += '\n/locks - Show current locks'
+            if is_admin_user:
+                msg += '\n/lock <type> - Lock links/stickers/media (admin)'
+                msg += '\n/unlock <type> - Unlock (admin)'
+            msg += '\n\n'
 
         # Language section
-        if lang == 'he':
-            msg += '''🌍 *שפה:*
+        if is_admin_user:
+            if lang == 'he':
+                msg += '''🌍 *שפה:*
 /lang - הצג שפה נוכחית
 /lang he|en - שנה שפה (מנהל)\n\n'''
-        else:
-            msg += '''🌍 *Language:*
+            else:
+                msg += '''🌍 *Language:*
 /lang - Show current language
 /lang he|en - Change language (admin)\n\n'''
         
         msg += get_text(chat_id, 'help_ai')
         if lang == 'he':
-            msg += '''
-/aimod on|off - הפעל/כבה מודרציית AI (מנהל)
-/aimodstatus - בדוק הגדרות AI
-/aihelp - מדריך מלא
-
-'''
+            msg += '\n/aimodstatus - בדוק הגדרות AI\n/aihelp - מדריך מלא'
+            if is_admin_user:
+                msg += '\n/aimod on|off - הפעל/כבה מודרציית AI (מנהל)'
+            msg += '\n\n'
         else:
-            msg += '''
-/aimod on|off - Enable/disable AI moderation (admin)
-/aimodstatus - Check AI settings
-/aihelp - Detailed AI moderation guide
-
-'''
+            msg += '\n/aimodstatus - Check AI settings\n/aihelp - Detailed AI moderation guide'
+            if is_admin_user:
+                msg += '\n/aimod on|off - Enable/disable AI moderation (admin)'
+            msg += '\n\n'
         
         msg += get_text(chat_id, 'help_note')
         msg += get_text(chat_id, 'help_use_cmd')
@@ -1844,7 +1870,12 @@ class WhatsAppBot:
     
     def cmd_aimod(self, chat_id: str, args: str):
         """Enable/disable AI moderation"""
-        if not args or args.lower() not in ['on', 'off']:
+        if not args:
+            # Show current status (like /aimodstatus)
+            self.cmd_aimodstatus(chat_id)
+            return
+        
+        if args.lower() not in ['on', 'off']:
             self.client.send_message(chat_id, get_text(chat_id, 'usage_aimod'))
             return
         
@@ -2076,11 +2107,14 @@ Example: /aimodset spam 70"""
                 if not os.getenv(f'{backend.upper()}_API_KEY'):
                     self.client.send_message(
                         chat_id,
-                        f"⚠️ Warning: {backend} requires an API key.\n\n"
-                        f"Set it with: /aimodkey {backend} YOUR_KEY\n\n"
-                        f"Or set {backend.upper()}_API_KEY environment variable.\n\n"
-                        f"Backend changed anyway, but it won't work without a key."
+                        f"❌ *{backend}* דורש API key!\n\n"
+                        f"🔑 הגדר מפתח תחילה:\n"
+                        f"/aimodkey {backend} YOUR_KEY\n\n"
+                        f"או הגדר משתנה סביבה:\n"
+                        f"{backend.upper()}_API_KEY\n\n"
+                        f"⚠️ ה-backend לא שונה. תחילה הגדר API key."
                     )
+                    return  # Don't change backend without API key
         
         set_ai_backend(chat_id, backend)
         self.client.send_message(
