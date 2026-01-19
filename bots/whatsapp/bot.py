@@ -18,8 +18,7 @@ from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
 from bot_core.content_filter import get_moderator, ModerationResult
 from bot_core.db_models import Base, Warn, WarnSettings, Ban, Rules, Welcome, BlacklistWord, Lock, ChatLanguage, AIModeration
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session
 
 # Setup logging
 logging.basicConfig(
