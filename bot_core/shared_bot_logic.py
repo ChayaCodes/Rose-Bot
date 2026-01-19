@@ -28,7 +28,7 @@ from bot_core.services.language_service import get_chat_language as get_chat_lan
 from bot_core.services.ban_service import add_ban, remove_ban
 from bot_core.services.chat_config_service import should_delete_commands, set_delete_commands
 from bot_core.services.ai_moderation_service import (
-    get_ai_settings, set_ai_enabled, set_ai_backend, set_ai_threshold, set_ai_action,
+    get_ai_settings, set_ai_enabled, set_ai_backend, set_ai_api_key, set_ai_threshold, set_ai_action,
     check_content_toxicity
 )
 
@@ -105,6 +105,10 @@ class SharedBotLogic:
 
             logger.info(f"Message from {from_id} in {chat_id}: {text[:50]}")
 
+            if text.startswith('/'):
+                self.handle_command(text, from_id, chat_id, is_group, message)
+                return
+
             if is_group:
                 ai_result = self._check_ai_moderation(chat_id, text)
                 if ai_result:
@@ -170,9 +174,6 @@ class SharedBotLogic:
                 if lock_violation:
                     self.actions.send_message(chat_id, get_text(chat_id, 'lock_triggered', lock_type=lock_violation))
                     return
-
-            if text.startswith('/'):
-                self.handle_command(text, from_id, chat_id, is_group, message)
 
         except Exception as e:
             logger.error(f"Error handling message: {e}", exc_info=True)
@@ -851,10 +852,11 @@ class SharedBotLogic:
             return
 
         if backend in ['detoxify']:
-            set_ai_backend(chat_id, backend, None)
+            set_ai_backend(chat_id, backend)
             self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_backend_set_no_key', backend=backend))
         else:
-            set_ai_backend(chat_id, backend, api_key)
+            set_ai_backend(chat_id, backend)
+            set_ai_api_key(chat_id, api_key)
             self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_key_saved', backend=backend))
 
     def cmd_aimodbackend(self, chat_id: str, backend: str):

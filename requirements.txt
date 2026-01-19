@@ -17,6 +17,7 @@ Pillow
 # AI moderation (detoxify backend)
 detoxify
 torch
+openai
 
 # For WhatsApp Web API:
 # Option 1: Install Node.js and run: npm install whatsapp-web.js

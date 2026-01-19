@@ -64,6 +64,7 @@ class ContentModerator:
         self.api_key = api_key or os.getenv(f'{backend.upper()}_API_KEY')
         self.ai_model = None
         self.client = None
+        self.openai_client_type = None
         self.use_ai = False  # Will be set to True if AI model loads successfully
         
         if backend == 'detoxify':
@@ -147,14 +148,21 @@ class ContentModerator:
             return
         
         try:
-            import openai
-            openai.api_key = self.api_key
-            self.client = openai
+            from openai import OpenAI
+            self.client = OpenAI(api_key=self.api_key)
+            self.openai_client_type = "new"
             logger.info("✅ OpenAI Moderation API initialized (English only)")
         except ImportError:
-            logger.warning("⚠️ OpenAI not installed. Install: pip install openai")
-            self.backend = 'detoxify'
-            self._init_detoxify()
+            try:
+                import openai
+                openai.api_key = self.api_key
+                self.client = openai
+                self.openai_client_type = "legacy"
+                logger.info("✅ OpenAI Moderation API initialized (legacy client, English only)")
+            except ImportError:
+                logger.warning("⚠️ OpenAI not installed. Install: pip install openai")
+                self.backend = 'detoxify'
+                self._init_detoxify()
     
     def _init_azure(self):
         """Initialize Azure Content Moderator"""
@@ -238,6 +246,22 @@ class ContentModerator:
                 reason="AI backend unavailable",
                 scores={}
             )
+
+    @staticmethod
+    def _map_content_type(category: str) -> ContentType:
+        """Map backend category strings to ContentType enum."""
+        mapping = {
+            'toxicity': ContentType.TOXIC,
+            'severe_toxicity': ContentType.SEVERE_TOXIC,
+            'obscene': ContentType.OBSCENE,
+            'threat': ContentType.THREAT,
+            'insult': ContentType.INSULT,
+            'identity_hate': ContentType.IDENTITY_HATE,
+            'sexual': ContentType.SEXUAL,
+            'spam': ContentType.SPAM,
+            'promotion': ContentType.PROMOTION,
+        }
+        return mapping.get(category, ContentType.TOXIC)
     
     def _check_perspective(self, text: str, thresholds: Dict[str, float]) -> ModerationResult:
         """Check with Google Perspective API (supports Hebrew + English)"""
@@ -272,7 +296,7 @@ class ContentModerator:
                 if score >= threshold:
                     return ModerationResult(
                         is_flagged=True,
-                        violation_type=ContentType(category),
+                        violation_type=self._map_content_type(category),
                         confidence=score,
                         reason=f"{category.replace('_', ' ').title()} detected (confidence: {score:.1%})",
                         scores=scores
@@ -298,30 +322,80 @@ class ContentModerator:
     def _check_openai(self, text: str, thresholds: Dict[str, float]) -> ModerationResult:
         """Check with OpenAI Moderation API (English only)"""
         try:
-            response = self.client.Moderation.create(input=text)
-            result = response['results'][0]
-            
+            if self.openai_client_type == "new":
+                response = self.client.moderations.create(
+                    model="omni-moderation-latest",
+                    input=text,
+                )
+                result = response.results[0]
+                categories = result.categories
+                category_scores = result.category_scores
+                flagged = result.flagged
+            else:
+                response = self.client.Moderation.create(input=text)
+                result = response['results'][0]
+                categories = result['categories']
+                category_scores = result['category_scores']
+                flagged = result['flagged']
+
+            def _score(key: str) -> float:
+                if isinstance(category_scores, dict):
+                    value = category_scores.get(key, 0.0)
+                else:
+                    attr_name = key.replace('/', '_').replace('-', '_')
+                    value = getattr(category_scores, attr_name, 0.0)
+                return float(value) if value is not None else 0.0
+
+            def _category_items():
+                if isinstance(categories, dict):
+                    return categories.items()
+                if hasattr(categories, "model_dump"):
+                    return categories.model_dump().items()
+                if hasattr(categories, "__dict__"):
+                    return categories.__dict__.items()
+                return []
+
             scores = {
-                'sexual': result['category_scores']['sexual'],
-                'hate': result['category_scores']['hate'],
-                'violence': result['category_scores']['violence'],
-                'self_harm': result['category_scores']['self-harm'],
+                'toxicity': max(_score('harassment'), _score('hate'), _score('violence')),
+                'severe_toxicity': max(
+                    _score('harassment/threatening'),
+                    _score('hate/threatening'),
+                    _score('violence/graphic'),
+                ),
+                'obscene': max(_score('sexual'), _score('sexual/minors')),
+                'threat': max(
+                    _score('harassment/threatening'),
+                    _score('hate/threatening'),
+                    _score('violence'),
+                ),
+                'insult': _score('harassment'),
+                'identity_hate': _score('hate'),
+                'sexual': max(_score('sexual'), _score('sexual/minors')),
+                'spam': 0.0,
             }
-            
-            # Check flags
-            if result['flagged']:
-                flagged_categories = [k for k, v in result['categories'].items() if v]
-                if flagged_categories:
-                    category = flagged_categories[0].replace('-', '_')
-                    score = scores.get(category.split('/')[0], 0.0)
+
+            # Check against thresholds
+            for category, score in scores.items():
+                threshold = thresholds.get(category, 0.7)
+                if score >= threshold:
                     return ModerationResult(
                         is_flagged=True,
-                        violation_type=ContentType.TOXIC,
+                        violation_type=self._map_content_type(category),
                         confidence=score,
-                        reason=f"Flagged: {', '.join(flagged_categories)}",
+                        reason=f"{category.replace('_', ' ').title()} detected (confidence: {score:.1%})",
                         scores=scores
                     )
-            
+
+            if flagged:
+                flagged_categories = [k for k, v in _category_items() if v]
+                return ModerationResult(
+                    is_flagged=True,
+                    violation_type=ContentType.TOXIC,
+                    confidence=max(scores.values()) if scores else 0.0,
+                    reason=f"Flagged: {', '.join(flagged_categories)}",
+                    scores=scores
+                )
+
             return ModerationResult(
                 is_flagged=False,
                 violation_type=None,
@@ -402,7 +476,7 @@ class ContentModerator:
                 if score >= threshold:
                     return ModerationResult(
                         is_flagged=True,
-                        violation_type=ContentType(category),
+                        violation_type=self._map_content_type(category),
                         confidence=score,
                         reason=f"{category.replace('_', ' ').title()} detected (confidence: {score:.1%})",
                         scores=scores
@@ -448,7 +522,7 @@ class ContentModerator:
                     if score >= threshold:
                         return ModerationResult(
                             is_flagged=True,
-                            violation_type=ContentType(category),
+                            violation_type=self._map_content_type(category),
                             confidence=score,
                             reason=f"{category.replace('_', ' ').title()} detected (confidence: {score:.1%})",
                             scores=scores

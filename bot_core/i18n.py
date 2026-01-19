@@ -55,7 +55,7 @@ TRANSLATIONS = {
    /lang - הצג שפה נוכחית
    /lang he|en - שנה שפה (מנהל)\n\n''',
       'help_ai_user': '\n/aimodstatus - בדוק הגדרות AI\n/aihelp - מדריך מלא\n\n',
-      'help_ai_admin': '\n/aimodstatus - בדוק הגדרות AI\n/aihelp - מדריך מלא\n/aimod on|off - הפעל/כבה מודרציית AI (מנהל)\n/aitest - בדיקת הודעה עם AI (מנהל)\n\n',
+      'help_ai_admin': '\n/aimodstatus - בדוק הגדרות AI\n/aihelp - מדריך מלא\n/aimod on|off - הפעל/כבה מודרציית AI (מנהל)\n/aitest <טקסט> - בדיקת הודעה עם AI (או השב להודעה) (מנהל)\n\n',
         'help_note': '_הערה: פקודות מנהל דורשות הרשאות מנהל קבוצה_',
         'admin_only': '❌ פקודה זו זמינה רק למנהלי קבוצה',
         'owner_only': '❌ פקודה זו זמינה רק לבעלים של הבוט',
@@ -169,10 +169,11 @@ TRANSLATIONS = {
 
    🔧 *מנועות זמינים:*
 
-📋 *rules* (ברירת מחדל)
-   • שפות: עברית + אנגלית
-   • עלות: חינם
+💻 *detoxify* (ברירת מחדל)
+   • שפות: אנגלית
+   • עלות: חינם (מקומי)
    • API Key: לא נדרש
+   • דרישה: pip install detoxify
 
 🌍 *perspective* (מומלץ לעברית!)
    • שפות: עברית + אנגלית
@@ -184,19 +185,13 @@ TRANSLATIONS = {
    • שפות: עברית + אנגלית
    • עלות: חינם עד 5,000/חודש
    • קבל API Key: Azure Portal
-   • הגדרה: /aimodkey azure <key>
+   • הגדרה: AZURE_ENDPOINT + /aimodkey azure <key>
 
 🤖 *openai*
    • שפות: אנגלית (בעיקר)
    • עלות: חינם (free tier)
    • קבל API Key: platform.openai.com
    • הגדרה: /aimodkey openai <key>
-
-💻 *detoxify*
-   • שפות: אנגלית
-   • עלות: חינם (מקומי)
-   • API Key: לא נדרש
-   • דרישה: pip install detoxify
 
 🎯 *קטגוריות לכיוון:*
 • toxicity - תוכן פוגעני
@@ -335,7 +330,12 @@ Example: /aimodset spam 70''',
    • תומך: עברית + אנגלית + 100 שפות
    • מומלץ: ✅ הכי מדויק!
    • API Key: חינם עד 5K בדיקות/חודש
-   • איך להשיג: https://azure.microsoft.com/products/ai-services/ai-content-safety
+   • איך להשיג:
+     1) צור משאב “Content Safety” ב-Azure Portal
+     2) העתק את ה-Key ואת ה-Endpoint
+     3) הגדר AZURE_ENDPOINT כמשתנה סביבה
+     4) השתמש ב-/aimodkey azure <KEY>
+   • פורטל: https://portal.azure.com
 
 🤖 *openai* (OpenAI Moderation)
    • תומך: אנגלית בלבד
@@ -347,16 +347,9 @@ Example: /aimodset spam 70''',
    • ללא צורך ב-API key ✅
    • דורש התקנה: pip install detoxify
 
-📋 *rules* (זיהוי דפוסים)
-   • תומך: עברית + אנגלית ✅
-   • ללא צורך ב-API key ✅
-   • מומלץ להתחלה!
-   • מהיר ויעיל
-
 *דוגמאות שימוש:*
 /aimodkey perspective AIzaSyA...
 /aimodkey azure a1b2c3d4e5...
-/aimodkey rules (אין צורך במפתח)
 
 🔒 *אבטחה:* המפתח נשמר רק עבור הקבוצה הזו
 💰 *עלות:* כל קבוצה יכולה להשתמש במפתח משלה
@@ -392,12 +385,6 @@ Example: /aimodset spam 70''',
    • תומך: אנגלית בלבד
    • חינם, רץ מקומי
    • ללא צורך ב-API key ✅
-
-📋 *rules* - זיהוי דפוסים
-   • תומך: עברית + אנגלית ✅
-   • חינם
-   • ללא צורך בהתקנה ✅
-   • מומלץ להתחלה!
 
 *דוגמה:*
 /aimodbackend perspective
@@ -508,7 +495,7 @@ Send /help to see all commands.''',
    /lang - Show current language
    /lang he|en - Change language (admin)\n\n''',
       'help_ai_user': '\n/aimodstatus - Check AI settings\n/aihelp - Detailed AI moderation guide\n\n',
-      'help_ai_admin': '\n/aimodstatus - Check AI settings\n/aihelp - Detailed AI moderation guide\n/aimod on|off - Enable/disable AI moderation (admin)\n/aitest - Test message with AI (admin)\n\n',
+      'help_ai_admin': '\n/aimodstatus - Check AI settings\n/aihelp - Detailed AI moderation guide\n/aimod on|off - Enable/disable AI moderation (admin)\n/aitest <text> - Test text with AI (or reply) (admin)\n\n',
         'help_note': '_Note: Admin commands require group admin rights_',
         'admin_only': '❌ This command is only available to group admins',
         'owner_only': '❌ This command is only available to bot owner',
@@ -567,7 +554,7 @@ The bot will automatically detect:
 🔞 Sexual content
 ⚠️ Threats
 
-📋 *Current Backend:* Rule-based (no API key needed)
+📋 *Current Backend:* Detoxify (local, no API key needed)
 
 *Useful commands:*
 • /aimodstatus - Check settings
@@ -575,8 +562,7 @@ The bot will automatically detect:
 • /aimodbackend - Change AI engine
 • /aimodkey - Set API key
 
-💡 *Tip:* The rules backend works great for Hebrew at no cost!
-For better results, add a Perspective or Azure API key.
+💡 *Tip:* Add a Perspective or Azure API key for better Hebrew accuracy.
 
 📚 More info: AI_MODERATION_SETUP.md''',
         'aimod_disabled': '❌ AI Moderation disabled',
@@ -622,10 +608,11 @@ For better results, add a Perspective or Azure API key.
 
    🔧 *Available Backends:*
 
-📋 *rules* (default)
-   • Languages: Hebrew + English
-   • Cost: Free
+💻 *detoxify* (default)
+   • Languages: English
+   • Cost: Free (local)
    • API Key: Not required
+   • Requires: pip install detoxify
 
 🌍 *perspective* (recommended for Hebrew!)
    • Languages: Hebrew + English
@@ -637,19 +624,13 @@ For better results, add a Perspective or Azure API key.
    • Languages: Hebrew + English
    • Cost: Free up to 5,000/month
    • Get API Key: Azure Portal
-   • Setup: /aimodkey azure <key>
+   • Setup: AZURE_ENDPOINT + /aimodkey azure <key>
 
 🤖 *openai*
    • Languages: English (mainly)
    • Cost: Free (free tier)
    • Get API Key: platform.openai.com
    • Setup: /aimodkey openai <key>
-
-💻 *detoxify*
-   • Languages: English
-   • Cost: Free (local)
-   • API Key: Not required
-   • Requires: pip install detoxify
 
 🎯 *Categories to adjust:*
 • toxicity - Offensive content
@@ -788,7 +769,12 @@ Example: /aimodset spam 70''',
    • Supports: Hebrew + English + 100 languages
    • Recommended: ✅ Most accurate!
    • API Key: Free up to 5K checks/month
-   • Get it: https://azure.microsoft.com/products/ai-services/ai-content-safety
+   • How to get it:
+     1) Create a “Content Safety” resource in Azure Portal
+     2) Copy the Key and the Endpoint
+     3) Set AZURE_ENDPOINT as an environment variable
+     4) Use /aimodkey azure <KEY>
+   • Portal: https://portal.azure.com
 
 🤖 *openai* (OpenAI Moderation)
    • Supports: English only
@@ -800,16 +786,9 @@ Example: /aimodset spam 70''',
    • No API key needed ✅
    • Requires: pip install detoxify
 
-📋 *rules* (Pattern matching)
-   • Supports: Hebrew + English ✅
-   • No API key needed ✅
-   • Recommended to start!
-   • Fast and efficient
-
 *Examples:*
 /aimodkey perspective AIzaSyA...
 /aimodkey azure a1b2c3d4e5...
-/aimodkey rules (no key needed)
 
 🔒 *Security:* Key is stored only for this group
 💰 *Cost:* Each group can use its own key
@@ -845,12 +824,6 @@ Example: /aimodset spam 70''',
    • Supports: English only
    • Free, runs locally
    • No API key needed ✅
-
-📋 *rules* - Pattern matching
-   • Supports: Hebrew + English ✅
-   • Free
-   • No installation needed ✅
-   • Recommended to start!
 
 *Example:*
 /aimodbackend perspective
@@ -957,7 +930,7 @@ COMMAND_HELP = {
       'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'החלף מנוע AI', 'example': '/aimodbackend perspective', 'admin': True},
       'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'הגדר API key למנוע', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
       'aihelp': {'usage': '/aihelp', 'desc': 'מדריך מפורט ל-AI Moderation', 'example': '/aihelp', 'admin': False},
-      'aitest': {'usage': '/aitest <טקסט או ציטוט>', 'desc': 'בדוק הודעה עם AI והצג ציונים', 'example': '/aitest (השב להודעה)', 'admin': True},
+      'aitest': {'usage': '/aitest <טקסט> או השב להודעה', 'desc': 'בדוק הודעה עם AI והצג ציונים', 'example': '/aitest בדוק את הטקסט הזה', 'admin': True},
    },
    'en': {
       'start': {'usage': '/start', 'desc': 'Start the bot and get welcome message', 'example': '/start', 'admin': False},
@@ -993,7 +966,7 @@ COMMAND_HELP = {
       'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'Change AI engine', 'example': '/aimodbackend perspective', 'admin': True},
       'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'Set API key for engine', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
       'aihelp': {'usage': '/aihelp', 'desc': 'Detailed AI Moderation guide', 'example': '/aihelp', 'admin': False},
-      'aitest': {'usage': '/aitest <text or reply>', 'desc': 'Test message with AI and show scores', 'example': '/aitest (reply to message)', 'admin': True},
+      'aitest': {'usage': '/aitest <text> or reply', 'desc': 'Test message with AI and show scores', 'example': '/aitest test this text', 'admin': True},
    }
 }
 
