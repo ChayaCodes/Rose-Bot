@@ -267,7 +267,7 @@ TRANSLATIONS = {
         'aitest_reason': 'סיבה: {reason}',
         
         # AI Status command additions
-        'aimod_status_disabled': '❌ AI Moderation is *disabled*\n\nUse /aimod on to enable',
+      'aimod_status_disabled': '❌ מודרציית AI כבויה\n\nהשתמש ב-/aimod on כדי להפעיל',
         'aimod_status_header': '🤖 *סטטוס AI Moderation*\n\n',
         'aimod_status_enabled': 'סטטוס: ✅ מופעל\n',
         'aimod_status_backend': 'Backend: {emoji} {name}\n',

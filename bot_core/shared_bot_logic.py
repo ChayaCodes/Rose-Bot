@@ -695,18 +695,19 @@ class SharedBotLogic:
 
         from bot_core.content_filter import ContentModerator
         moderator = ContentModerator(
-            backend=settings.backend,
-            api_key=settings.api_key
+            backend=settings['backend'],
+            api_key=settings['api_key']
         )
 
-        requested_backend = settings.backend
+        requested_backend = settings['backend']
         used_backend = moderator.backend
 
+        threshold_value = settings['threshold'] / 100.0
         thresholds = {
-            'toxicity': settings.toxicity_threshold / 100.0,
-            'spam': settings.spam_threshold / 100.0,
-            'sexual': settings.sexual_threshold / 100.0,
-            'threat': settings.threat_threshold / 100.0,
+            'toxicity': threshold_value,
+            'spam': threshold_value,
+            'sexual': threshold_value,
+            'threat': threshold_value,
         }
 
         result = moderator.check_message(test_text, thresholds)
@@ -853,7 +854,7 @@ class SharedBotLogic:
         settings = get_ai_settings(chat_id)
 
         if backend in ['perspective', 'openai', 'azure']:
-            if not settings.api_key:
+            if not settings['api_key']:
                 import os
                 if not os.getenv(f'{backend.upper()}_API_KEY'):
                     self.actions.send_message(
