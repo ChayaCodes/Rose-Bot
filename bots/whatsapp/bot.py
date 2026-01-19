@@ -1954,7 +1954,11 @@ Example: /aimodset spam 70"""
         # Get text to test
         test_text = None
         if quoted_msg:
-            test_text = quoted_msg
+            # quoted_msg is a dict with 'body' field
+            if isinstance(quoted_msg, dict):
+                test_text = quoted_msg.get('body', '')
+            else:
+                test_text = quoted_msg
         elif args:
             test_text = args
         else:
