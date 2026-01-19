@@ -1421,18 +1421,57 @@ class WhatsAppBot:
     
     def cmd_warn(self, chat_id: str, warner_id: str, reason: str, message: dict):
         """Warn a user"""
-        # TODO: Extract user from reply
-        # For now, show usage
-        self.client.send_message(chat_id, get_text(chat_id, 'warn_usage'))
+        # Check if this is a reply to another message
+        quoted_msg = message.get('quotedMsg')
+        quoted_participant = message.get('quotedParticipant')
+        
+        if not quoted_msg or not quoted_participant:
+            self.client.send_message(chat_id, get_text(chat_id, 'warn_usage'))
+            return
+        
+        # Get target user ID
+        target_user = quoted_participant
+        
+        # Add warning
+        reason = reason or get_text(chat_id, 'no_reason')
+        add_warn(target_user, chat_id, warner_id, reason)
+        
+        # Get current warn count
+        warns = get_warns(target_user, chat_id)
+        limit, soft = get_warn_settings(chat_id)
+        count = len(warns)
+        
+        # Format user display (just the number part)
+        user_display = target_user.split('@')[0]
+        
+        # Check if user reached limit
+        if count >= limit:
+            msg = get_text(chat_id, 'warn_limit_reached', user=user_display)
+            self.client.send_message(chat_id, msg)
+            
+            # Kick or ban based on soft setting
+            if not soft:
+                # Ban (remove from group)
+                success = self.client.remove_participant(chat_id, target_user)
+                if success:
+                    self.client.send_message(chat_id, get_text(chat_id, 'user_banned', user=user_display))
+        else:
+            msg = get_text(chat_id, 'warn_issued', user=user_display, reason=reason, count=count, limit=limit)
+            self.client.send_message(chat_id, msg)
     
     def cmd_warns(self, chat_id: str, user_id: str, message: dict):
         """Check warns"""
-        # TODO: Extract user from reply or check self
-        warns = get_warns(user_id, chat_id)
+        # Check if replying to someone
+        quoted_participant = message.get('quotedParticipant')
+        target_user = quoted_participant if quoted_participant else user_id
+        
+        warns = get_warns(target_user, chat_id)
         limit, soft = get_warn_settings(chat_id)
         
+        user_display = target_user.split('@')[0]
+        
         if not warns:
-            msg = get_text(chat_id, 'no_warns')
+            msg = get_text(chat_id, 'warns_none', user=user_display)
         else:
             msg = get_text(chat_id, 'warns_list', count=len(warns), limit=limit)
             for i, warn in enumerate(warns, 1):
@@ -1443,8 +1482,17 @@ class WhatsAppBot:
     
     def cmd_resetwarns(self, chat_id: str, message: dict):
         """Reset warns"""
-        # TODO: Extract user from reply
-        self.client.send_message(chat_id, get_text(chat_id, 'resetwarns_usage'))
+        # Check if replying to someone
+        quoted_participant = message.get('quotedParticipant')
+        
+        if not quoted_participant:
+            self.client.send_message(chat_id, get_text(chat_id, 'resetwarns_usage'))
+            return
+        
+        # Reset warns
+        reset_warns(quoted_participant, chat_id)
+        user_display = quoted_participant.split('@')[0]
+        self.client.send_message(chat_id, get_text(chat_id, 'warns_reset', user=user_display))
     
     def cmd_setwarn(self, chat_id: str, limit_str: str):
         """Set warn limit"""
@@ -1459,11 +1507,39 @@ class WhatsAppBot:
     
     def cmd_kick(self, chat_id: str, message: dict):
         """Kick user"""
-        self.client.send_message(chat_id, get_text(chat_id, 'kick_usage'))
+        # Check if replying to someone
+        quoted_participant = message.get('quotedParticipant')
+        
+        if not quoted_participant:
+            self.client.send_message(chat_id, get_text(chat_id, 'kick_usage'))
+            return
+        
+        # Kick the user
+        user_display = quoted_participant.split('@')[0]
+        success = self.client.remove_participant(chat_id, quoted_participant)
+        
+        if success:
+            self.client.send_message(chat_id, get_text(chat_id, 'user_kicked', user=user_display))
+        else:
+            self.client.send_message(chat_id, get_text(chat_id, 'kick_failed'))
     
     def cmd_ban(self, chat_id: str, message: dict):
         """Ban user"""
-        self.client.send_message(chat_id, get_text(chat_id, 'ban_usage'))
+        # Check if replying to someone
+        quoted_participant = message.get('quotedParticipant')
+        
+        if not quoted_participant:
+            self.client.send_message(chat_id, get_text(chat_id, 'ban_usage'))
+            return
+        
+        # Ban = kick (WhatsApp doesn't have real bans, but we can store in DB)
+        user_display = quoted_participant.split('@')[0]
+        success = self.client.remove_participant(chat_id, quoted_participant)
+        
+        if success:
+            self.client.send_message(chat_id, get_text(chat_id, 'user_banned', user=user_display))
+        else:
+            self.client.send_message(chat_id, get_text(chat_id, 'ban_failed'))
     
     def cmd_setwelcome(self, chat_id: str, welcome_text: str):
         """Set welcome message"""

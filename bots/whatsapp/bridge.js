@@ -54,6 +54,28 @@ client.on('message', async (msg) => {
     if (pythonCallbackUrl) {
         try {
             const fetch = require('node-fetch');
+            
+            // Get quoted message info if this is a reply
+            let quotedParticipant = null;
+            let quotedMsg = null;
+            if (msg.hasQuotedMsg) {
+                try {
+                    const quoted = await msg.getQuotedMessage();
+                    quotedParticipant = quoted.author || quoted.from;
+                    quotedMsg = {
+                        id: quoted.id._serialized,
+                        body: quoted.body,
+                        from: quoted.author || quoted.from
+                    };
+                } catch (e) {
+                    console.error('Error getting quoted message:', e);
+                }
+            }
+            
+            // Determine chat ID (for groups, use the group ID)
+            const chatId = msg.from.includes('@g.us') ? msg.from : msg.from;
+            const senderId = msg.author || msg.from;  // In groups, author is the sender
+            
             await fetch(pythonCallbackUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -62,11 +84,15 @@ client.on('message', async (msg) => {
                     data: {
                         id: msg.id._serialized,
                         body: msg.body,
-                        from: msg.from,
+                        from: senderId,
+                        chatId: chatId,
                         to: msg.to,
                         timestamp: msg.timestamp,
                         hasMedia: msg.hasMedia,
-                        isGroup: msg.from.includes('@g.us')
+                        isGroup: msg.from.includes('@g.us'),
+                        hasQuotedMsg: msg.hasQuotedMsg,
+                        quotedMsg: quotedMsg,
+                        quotedParticipant: quotedParticipant
                     }
                 })
             });
