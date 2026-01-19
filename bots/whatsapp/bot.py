@@ -1966,8 +1966,8 @@ Example: /aimodset spam 70"""
         settings = get_ai_settings(chat_id)
         
         # Check with AI
-        from bot_core.content_filter import ContentModerationService
-        moderator = ContentModerationService(
+        from bot_core.content_filter import ContentModerator
+        moderator = ContentModerator(
             backend=settings.backend,
             api_key=settings.api_key
         )
