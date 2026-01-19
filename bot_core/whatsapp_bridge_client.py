@@ -168,6 +168,34 @@ class WhatsAppBridgeClient:
             logger.error(f"Failed to demote participant: {e}")
             return False
     
+    def add_participants(self, group_id: str, participants: list) -> bool:
+        """Add participants to group"""
+        try:
+            response = requests.post(
+                f"{self.bridge_url}/group/{group_id}/add",
+                json={'participants': participants},
+                timeout=30
+            )
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add participants: {e}")
+            return False
+    
+    def get_invite_link(self, group_id: str) -> Optional[str]:
+        """Get group invite link"""
+        try:
+            response = requests.get(
+                f"{self.bridge_url}/group/{group_id}/invite",
+                timeout=10
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result.get('inviteLink')
+        except Exception as e:
+            logger.error(f"Failed to get invite link: {e}")
+            return None
+    
     def on_message(self, handler: Callable):
         """Register message handler"""
         self.message_handlers.append(handler)

@@ -49,6 +49,7 @@ client.on('ready', () => {
 // Message received event
 client.on('message', async (msg) => {
     console.log('Message received:', msg.body);
+    console.log('Has quoted message:', msg.hasQuotedMsg);
     
     // Forward to Python
     if (pythonCallbackUrl) {
@@ -67,6 +68,7 @@ client.on('message', async (msg) => {
                         body: quoted.body,
                         from: quoted.author || quoted.from
                     };
+                    console.log('Quoted participant:', quotedParticipant);
                 } catch (e) {
                     console.error('Error getting quoted message:', e);
                 }
@@ -75,6 +77,8 @@ client.on('message', async (msg) => {
             // Determine chat ID (for groups, use the group ID)
             const chatId = msg.from.includes('@g.us') ? msg.from : msg.from;
             const senderId = msg.author || msg.from;  // In groups, author is the sender
+            
+            console.log('Sending to Python - chatId:', chatId, 'senderId:', senderId);
             
             await fetch(pythonCallbackUrl, {
                 method: 'POST',
@@ -280,6 +284,53 @@ app.post('/group/:groupId/demote', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('Error demoting participant:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Add participants to group
+app.post('/group/:groupId/add', async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const { participants } = req.body;  // Array of participant IDs
+        
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+        
+        const chat = await client.getChatById(groupId);
+        
+        // Ensure participants is an array
+        const participantList = Array.isArray(participants) ? participants : [participants];
+        
+        const result = await chat.addParticipants(participantList);
+        
+        res.json({ success: true, result });
+    } catch (error) {
+        console.error('Error adding participants:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get group invite link
+app.get('/group/:groupId/invite', async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+        
+        const chat = await client.getChatById(groupId);
+        const inviteCode = await chat.getInviteCode();
+        
+        res.json({ 
+            success: true, 
+            inviteCode,
+            inviteLink: `https://chat.whatsapp.com/${inviteCode}`
+        });
+    } catch (error) {
+        console.error('Error getting invite link:', error);
         res.status(500).json({ error: error.message });
     }
 });

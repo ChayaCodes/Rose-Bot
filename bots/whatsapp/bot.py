@@ -112,6 +112,15 @@ class Language(Base):
     __tablename__ = 'language'
     chat_id = Column(String(100), primary_key=True)
     lang_code = Column(String(10), default='he')  # he, en, etc.
+
+
+class BannedUser(Base):
+    __tablename__ = 'banned_users'
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(String(100), nullable=False)
+    user_id = Column(String(100), nullable=False)
+    banned_at = Column(DateTime, default=datetime.utcnow)
+    banned_by = Column(String(100))
     
 
 # Create tables
@@ -277,9 +286,19 @@ TRANSLATIONS = {
         'resetwarns_usage': '❌ השב להודעה של משתמש כדי לאפס אזהרות',
         'warns_reset_success': '✅ האזהרות אופסו',
         
-        # Kick/Ban
+        # Kick/Ban/Unban/Add
         'kick_usage': '👢 *בעיטת משתמש*\n\nהשב להודעה של משתמש עם /kick\n\n_הערה: הבוט צריך הרשאות מנהל_',
         'ban_usage': '🚫 *חסימת משתמש*\n\nהשב להודעה של משתמש עם /ban\n\n_הערה: הבוט צריך הרשאות מנהל_',
+        'unban_usage': '✅ *ביטול חסימה*\n\nשימוש: /unban <מספר טלפון>\n\nדוגמה: /unban 972501234567',
+        'user_unbanned': '✅ {user} הוסר מרשימת החסומים',
+        'user_not_banned': 'ℹ️ המשתמש לא נמצא ברשימת החסומים',
+        'add_usage': '➕ *הוספת משתמש לקבוצה*\n\nשימוש: /add <מספר טלפון>\n\nדוגמה: /add 972501234567\nאו: /add 972501234567,972509876543',
+        'user_added': '✅ {user} נוסף לקבוצה',
+        'user_add_failed': '❌ לא הצלחתי להוסיף את {user}\n\nסיבות אפשריות:\n• המשתמש חסם את הבוט\n• הגדרות פרטיות של המשתמש\n• הבוט לא מנהל',
+        'users_added': '✅ {count} משתמשים נוספו לקבוצה',
+        'invite_link': '🔗 *לינק הזמנה לקבוצה:*\n\n{link}',
+        'invite_failed': '❌ לא הצלחתי ליצור לינק הזמנה',
+        'invalid_phone': '❌ מספר טלפון לא תקין: {phone}\n\nפורמט נכון: 972501234567 (ללא +, -, רווחים)',
         
         # Welcome
         'welcome_current': '👋 *הודעת קבלת פנים נוכחית:*\n\n{message}',
@@ -538,9 +557,19 @@ Example: /aimodset spam 70''',
         'resetwarns_usage': '❌ Reply to a user\'s message to reset warnings',
         'warns_reset_success': '✅ Warnings reset',
         
-        # Kick/Ban
+        # Kick/Ban/Unban/Add
         'kick_usage': '👢 *Kick User*\n\nReply to a user\'s message with /kick\n\n_Note: Bot needs admin rights_',
         'ban_usage': '🚫 *Ban User*\n\nReply to a user\'s message with /ban\n\n_Note: Bot needs admin rights_',
+        'unban_usage': '✅ *Unban User*\n\nUsage: /unban <phone number>\n\nExample: /unban 972501234567',
+        'user_unbanned': '✅ {user} removed from ban list',
+        'user_not_banned': 'ℹ️ User not found in ban list',
+        'add_usage': '➕ *Add User to Group*\n\nUsage: /add <phone number>\n\nExample: /add 972501234567\nOr: /add 972501234567,972509876543',
+        'user_added': '✅ {user} added to group',
+        'user_add_failed': '❌ Failed to add {user}\n\nPossible reasons:\n• User blocked the bot\n• User privacy settings\n• Bot is not admin',
+        'users_added': '✅ {count} users added to group',
+        'invite_link': '🔗 *Group Invite Link:*\n\n{link}',
+        'invite_failed': '❌ Failed to generate invite link',
+        'invalid_phone': '❌ Invalid phone number: {phone}\n\nCorrect format: 972501234567 (no +, -, spaces)',
         
         # Welcome
         'welcome_current': '👋 *Current Welcome Message:*\n\n{message}',
@@ -666,6 +695,9 @@ COMMAND_HELP = {
         'setwarn': {'usage': '/setwarn <מספר>', 'desc': 'הגדר מגבלת אזהרות', 'example': '/setwarn 3', 'admin': True},
         'kick': {'usage': '/kick', 'desc': 'בעט משתמש מהקבוצה (השב להודעה)', 'example': '/kick', 'admin': True},
         'ban': {'usage': '/ban', 'desc': 'חסום משתמש מהקבוצה (השב להודעה)', 'example': '/ban', 'admin': True},
+        'unban': {'usage': '/unban <טלפון>', 'desc': 'בטל חסימה של משתמש', 'example': '/unban 972501234567', 'admin': True},
+        'add': {'usage': '/add <טלפון>', 'desc': 'הוסף משתמש לקבוצה', 'example': '/add 972501234567', 'admin': True},
+        'invite': {'usage': '/invite', 'desc': 'קבל לינק הזמנה לקבוצה', 'example': '/invite', 'admin': True},
         'welcome': {'usage': '/welcome', 'desc': 'הצג הודעת קבלת פנים נוכחית', 'example': '/welcome', 'admin': False},
         'setwelcome': {'usage': '/setwelcome <הודעה>', 'desc': 'הגדר הודעת קבלת פנים. השתמש ב-{mention} לתיוג', 'example': '/setwelcome ברוך הבא {mention}!', 'admin': True},
         'blacklist': {'usage': '/blacklist', 'desc': 'הצג רשימת מילים חסומות', 'example': '/blacklist', 'admin': False},
@@ -697,6 +729,9 @@ COMMAND_HELP = {
         'setwarn': {'usage': '/setwarn <number>', 'desc': 'Set warn limit', 'example': '/setwarn 3', 'admin': True},
         'kick': {'usage': '/kick', 'desc': 'Kick user from group (reply to message)', 'example': '/kick', 'admin': True},
         'ban': {'usage': '/ban', 'desc': 'Ban user from group (reply to message)', 'example': '/ban', 'admin': True},
+        'unban': {'usage': '/unban <phone>', 'desc': 'Unban a user', 'example': '/unban 972501234567', 'admin': True},
+        'add': {'usage': '/add <phone>', 'desc': 'Add user to group', 'example': '/add 972501234567', 'admin': True},
+        'invite': {'usage': '/invite', 'desc': 'Get group invite link', 'example': '/invite', 'admin': True},
         'welcome': {'usage': '/welcome', 'desc': 'Show current welcome message', 'example': '/welcome', 'admin': False},
         'setwelcome': {'usage': '/setwelcome <message>', 'desc': 'Set welcome message. Use {mention} to tag', 'example': '/setwelcome Welcome {mention}!', 'admin': True},
         'blacklist': {'usage': '/blacklist', 'desc': 'Show blacklisted words', 'example': '/blacklist', 'admin': False},
@@ -861,6 +896,40 @@ def get_text(chat_id: str, key: str, **kwargs) -> str:
     lang = get_chat_lang(chat_id)
     text = TRANSLATIONS.get(lang, {}).get(key, TRANSLATIONS['en'].get(key, key))
     return text.format(**kwargs) if kwargs else text
+
+
+# ============ BAN SYSTEM ============
+
+def add_ban(chat_id: str, user_id: str, banned_by: str = None):
+    """Add user to ban list"""
+    existing = db_session.query(BannedUser).filter_by(
+        chat_id=chat_id, user_id=user_id
+    ).first()
+    if not existing:
+        ban = BannedUser(chat_id=chat_id, user_id=user_id, banned_by=banned_by)
+        db_session.add(ban)
+        db_session.commit()
+
+
+def remove_ban(chat_id: str, user_id: str) -> bool:
+    """Remove user from ban list, returns True if found and removed"""
+    result = db_session.query(BannedUser).filter_by(
+        chat_id=chat_id, user_id=user_id
+    ).delete()
+    db_session.commit()
+    return result > 0
+
+
+def is_banned(chat_id: str, user_id: str) -> bool:
+    """Check if user is banned in chat"""
+    return db_session.query(BannedUser).filter_by(
+        chat_id=chat_id, user_id=user_id
+    ).first() is not None
+
+
+def get_banned_users(chat_id: str) -> list:
+    """Get all banned users in chat"""
+    return db_session.query(BannedUser).filter_by(chat_id=chat_id).all()
 
 
 # ============ BLACKLIST SYSTEM ============
@@ -1176,6 +1245,24 @@ class WhatsAppBot:
                 return
             self.cmd_ban(chat_id, message)
         
+        elif command == 'unban':
+            if not is_admin(chat_id, from_id, self.client):
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
+                return
+            self.cmd_unban(chat_id, args)
+        
+        elif command == 'add':
+            if not is_admin(chat_id, from_id, self.client):
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
+                return
+            self.cmd_add(chat_id, args)
+        
+        elif command == 'invite':
+            if not is_admin(chat_id, from_id, self.client):
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
+                return
+            self.cmd_invite(chat_id)
+        
         # ===== WELCOME COMMANDS =====
         
         elif command == 'setwelcome':
@@ -1432,20 +1519,18 @@ class WhatsAppBot:
         # Get target user ID
         target_user = quoted_participant
         
-        # Add warning
+        # Add warning and get count
         reason = reason or get_text(chat_id, 'no_reason')
-        add_warn(target_user, chat_id, warner_id, reason)
+        count, limit_reached = warn_user(target_user, chat_id, reason, warner_id)
         
-        # Get current warn count
-        warns = get_warns(target_user, chat_id)
+        # Get warn settings
         limit, soft = get_warn_settings(chat_id)
-        count = len(warns)
         
         # Format user display (just the number part)
         user_display = target_user.split('@')[0]
         
         # Check if user reached limit
-        if count >= limit:
+        if limit_reached:
             msg = get_text(chat_id, 'warn_limit_reached', user=user_display)
             self.client.send_message(chat_id, msg)
             
@@ -1532,14 +1617,80 @@ class WhatsAppBot:
             self.client.send_message(chat_id, get_text(chat_id, 'ban_usage'))
             return
         
-        # Ban = kick (WhatsApp doesn't have real bans, but we can store in DB)
+        # Ban = kick + add to ban list
         user_display = quoted_participant.split('@')[0]
+        
+        # Add to ban list in DB
+        add_ban(chat_id, quoted_participant)
+        
+        # Remove from group
         success = self.client.remove_participant(chat_id, quoted_participant)
         
         if success:
             self.client.send_message(chat_id, get_text(chat_id, 'user_banned', user=user_display))
         else:
             self.client.send_message(chat_id, get_text(chat_id, 'ban_failed'))
+    
+    def cmd_unban(self, chat_id: str, phone: str):
+        """Unban a user"""
+        if not phone:
+            self.client.send_message(chat_id, get_text(chat_id, 'unban_usage'))
+            return
+        
+        # Clean phone number
+        phone = phone.strip().replace('+', '').replace('-', '').replace(' ', '')
+        
+        # Validate phone format
+        if not phone.isdigit() or len(phone) < 10:
+            self.client.send_message(chat_id, get_text(chat_id, 'invalid_phone', phone=phone))
+            return
+        
+        user_id = f"{phone}@c.us"
+        
+        # Remove from ban list
+        if remove_ban(chat_id, user_id):
+            self.client.send_message(chat_id, get_text(chat_id, 'user_unbanned', user=phone))
+        else:
+            self.client.send_message(chat_id, get_text(chat_id, 'user_not_banned'))
+    
+    def cmd_add(self, chat_id: str, phones: str):
+        """Add users to group"""
+        if not phones:
+            self.client.send_message(chat_id, get_text(chat_id, 'add_usage'))
+            return
+        
+        # Parse phone numbers (comma or space separated)
+        phone_list = [p.strip().replace('+', '').replace('-', '').replace(' ', '') 
+                      for p in phones.replace(',', ' ').split()]
+        
+        # Validate and convert to user IDs
+        participants = []
+        for phone in phone_list:
+            if phone.isdigit() and len(phone) >= 10:
+                participants.append(f"{phone}@c.us")
+            else:
+                self.client.send_message(chat_id, get_text(chat_id, 'invalid_phone', phone=phone))
+                return
+        
+        # Add to group
+        success = self.client.add_participants(chat_id, participants)
+        
+        if success:
+            if len(participants) == 1:
+                self.client.send_message(chat_id, get_text(chat_id, 'user_added', user=phone_list[0]))
+            else:
+                self.client.send_message(chat_id, get_text(chat_id, 'users_added', count=len(participants)))
+        else:
+            self.client.send_message(chat_id, get_text(chat_id, 'user_add_failed', user=phones))
+    
+    def cmd_invite(self, chat_id: str):
+        """Get group invite link"""
+        link = self.client.get_invite_link(chat_id)
+        
+        if link:
+            self.client.send_message(chat_id, get_text(chat_id, 'invite_link', link=link))
+        else:
+            self.client.send_message(chat_id, get_text(chat_id, 'invite_failed'))
     
     def cmd_setwelcome(self, chat_id: str, welcome_text: str):
         """Set welcome message"""
