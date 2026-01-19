@@ -1420,10 +1420,16 @@ class WhatsAppBot:
         msg += get_text(chat_id, 'help_moderation')
         if lang == 'he':
             msg += '''\n/kick - בעט משתמש (השב להודעה)
-/ban - חסום משתמש (השב להודעה)\n\n'''
+/ban - חסום משתמש (השב להודעה)
+/unban <טלפון> - בטל חסימה של משתמש
+/add <טלפון> - הוסף משתמש לקבוצה
+/invite - קבל קישור הזמנה לקבוצה\n\n'''
         else:
             msg += '''\n/kick - Kick user (reply to message)
-/ban - Ban user (reply to message)\n\n'''
+/ban - Ban user (reply to message)
+/unban <phone> - Unban a user
+/add <phone> - Add user to group
+/invite - Get group invite link\n\n'''
         
         msg += get_text(chat_id, 'help_welcome')
         if lang == 'he':
@@ -1667,6 +1673,9 @@ class WhatsAppBot:
         participants = []
         for phone in phone_list:
             if phone.isdigit() and len(phone) >= 10:
+                # Convert local Israeli number (0...) to international (972...)
+                if phone.startswith('0'):
+                    phone = '972' + phone[1:]
                 participants.append(f"{phone}@c.us")
             else:
                 self.client.send_message(chat_id, get_text(chat_id, 'invalid_phone', phone=phone))

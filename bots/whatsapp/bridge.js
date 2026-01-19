@@ -303,7 +303,28 @@ app.post('/group/:groupId/add', async (req, res) => {
         // Ensure participants is an array
         const participantList = Array.isArray(participants) ? participants : [participants];
         
-        const result = await chat.addParticipants(participantList);
+        // Validate that participants have valid WhatsApp IDs
+        const validParticipants = [];
+        for (const p of participantList) {
+            try {
+                // Check if the number is registered on WhatsApp
+                const numberId = await client.getNumberId(p.replace('@c.us', ''));
+                if (numberId) {
+                    validParticipants.push(numberId._serialized);
+                } else {
+                    console.log(`Number ${p} is not registered on WhatsApp`);
+                }
+            } catch (e) {
+                console.log(`Error checking number ${p}:`, e.message);
+                validParticipants.push(p);  // Try anyway
+            }
+        }
+        
+        if (validParticipants.length === 0) {
+            return res.status(400).json({ error: 'No valid WhatsApp numbers found' });
+        }
+        
+        const result = await chat.addParticipants(validParticipants);
         
         res.json({ success: true, result });
     } catch (error) {
