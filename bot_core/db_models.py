@@ -85,14 +85,10 @@ class AIModeration(Base):
     __tablename__ = 'ai_moderation'
     chat_id = Column(String(100), primary_key=True)
     enabled = Column(Boolean, default=False)
-    backend = Column(String(20), default='rules')  # perspective, azure, openai, detoxify, rules
-    api_key = Column(String(255), nullable=True)  # Group's own API key
-    toxicity_threshold = Column(Integer, default=70)  # 0-100
-    spam_threshold = Column(Integer, default=70)
-    sexual_threshold = Column(Integer, default=70)
-    threat_threshold = Column(Integer, default=60)
-    auto_delete = Column(Boolean, default=True)
-    auto_warn = Column(Boolean, default=False)
+    backend = Column(String(20), default='detoxify')  # detoxify, perspective, openai, azure
+    api_key = Column(String(255), nullable=True)  # API key for external services
+    threshold = Column(Integer, default=70)  # 0-100 toxicity threshold
+    action = Column(String(20), default='delete')  # warn, delete, kick, ban
 
 
 class ChatLanguage(Base):
@@ -100,3 +96,10 @@ class ChatLanguage(Base):
     __tablename__ = 'language'
     chat_id = Column(String(100), primary_key=True)
     lang_code = Column(String(10), default='he')  # he, en, etc.
+
+
+class ChatConfig(Base):
+    """Chat configuration settings"""
+    __tablename__ = 'chat_config'
+    chat_id = Column(String(100), primary_key=True)
+    delete_commands = Column(Boolean, default=False)  # Delete command messages after processing

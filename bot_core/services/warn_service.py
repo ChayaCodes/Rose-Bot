@@ -8,7 +8,7 @@ from typing import Optional, Tuple
 from datetime import datetime
 
 from ..database import get_session
-from ..db_models import Warn, WarnSettings, WarnSettings
+from ..db_models import Warn, WarnSettings
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +129,28 @@ def set_warn_limit(chat_id: str, limit: int) -> None:
         session.close()
 
 
+def get_warn_settings(chat_id: str) -> Tuple[int, bool]:
+    """
+    Get warning settings for a chat
+    
+    Args:
+        chat_id: Chat identifier
+    
+    Returns:
+        Tuple of (warn_limit, soft_warn)
+    """
+    session = get_session()
+    try:
+        settings = session.query(WarnSettings).filter_by(chat_id=chat_id).first()
+        if not settings:
+            settings = WarnSettings(chat_id=chat_id)
+            session.add(settings)
+            session.commit()
+        return settings.warn_limit, settings.soft_warn
+    finally:
+        session.close()
+
+
 def get_warn_limit(chat_id: str) -> int:
     """
     Get warning limit for a chat
@@ -143,5 +165,23 @@ def get_warn_limit(chat_id: str) -> int:
     try:
         settings = session.query(WarnSettings).filter_by(chat_id=chat_id).first()
         return settings.warn_limit if settings else 3
+    finally:
+        session.close()
+
+
+def get_warns(chat_id: str, user_id: str):
+    """
+    Get all warnings for a user in a chat
+    
+    Args:
+        chat_id: Chat identifier
+        user_id: User identifier
+    
+    Returns:
+        List of Warn objects
+    """
+    session = get_session()
+    try:
+        return session.query(Warn).filter_by(chat_id=chat_id, user_id=user_id).all()
     finally:
         session.close()

@@ -16,6 +16,29 @@ cp sample_config.py wa_config.py
 
 ### 2. Run the Bot
 
+**🎯 Easy Way (Recommended) - One Command:**
+
+**Windows (PowerShell):**
+```powershell
+cd bots/whatsapp
+.\start.ps1
+```
+
+**Linux/Mac:**
+```bash
+cd bots/whatsapp
+chmod +x start.sh
+./start.sh
+```
+
+**Python (Cross-platform):**
+```bash
+cd bots/whatsapp
+python start.py
+```
+
+**⚙️ Manual Way (Advanced) - Two Terminals:**
+
 **Terminal 1 - Start Bridge:**
 ```bash
 cd bots/whatsapp
@@ -30,7 +53,7 @@ python bot.py
 
 ### 3. Scan QR Code
 
-- QR code will appear in Terminal 1
+- QR code will appear in the terminal
 - Scan with WhatsApp on your phone (Linked Devices)
 - Bot is ready! ✅
 

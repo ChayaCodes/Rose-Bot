@@ -83,7 +83,7 @@ def get_blacklist_words(chat_id: str) -> List[str]:
         session.close()
 
 
-def check_blacklist(chat_id: str, text: str) -> bool:
+def check_blacklist(chat_id: str, text: str) -> str:
     """
     Check if text contains blacklisted words
     
@@ -92,21 +92,19 @@ def check_blacklist(chat_id: str, text: str) -> bool:
         text: Text to check
     
     Returns:
-        True if text contains blacklisted word
+        The blacklisted word found, or None
     """
     words = get_blacklist_words(chat_id)
     if not words:
-        return False
+        return None
     
     text_lower = text.lower()
     for word in words:
-        # Use word boundaries for exact word matching
-        pattern = r'\b' + re.escape(word) + r'\b'
-        if re.search(pattern, text_lower):
+        if word in text_lower:
             logger.info(f"🚫 Blacklist triggered: '{word}' found in {chat_id}")
-            return True
+            return word
     
-    return False
+    return None
 
 
 def clear_blacklist(chat_id: str) -> int:

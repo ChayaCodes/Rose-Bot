@@ -329,6 +329,82 @@ For better results, add a Perspective or Azure API key.
     }
 }
 
+# Command help dictionary for /help <cmd>
+COMMAND_HELP = {
+   'he': {
+      'start': {'usage': '/start', 'desc': 'התחל את הבוט וקבל הודעת פתיחה', 'example': '/start', 'admin': False},
+      'help': {'usage': '/help [פקודה]', 'desc': 'הצג רשימת פקודות או מידע על פקודה ספציפית', 'example': '/help warn', 'admin': False},
+      'info': {'usage': '/info', 'desc': 'הצג מידע על הבוט', 'example': '/info', 'admin': False},
+      'ping': {'usage': '/ping', 'desc': 'בדוק אם הבוט פועל', 'example': '/ping', 'admin': False},
+      'rules': {'usage': '/rules', 'desc': 'הצג את חוקי הקבוצה', 'example': '/rules', 'admin': False},
+      'setrules': {'usage': '/setrules <טקסט>', 'desc': 'הגדר חוקים לקבוצה', 'example': '/setrules 1. היו נחמדים\n2. אין ספאם', 'admin': True},
+      'clearrules': {'usage': '/clearrules', 'desc': 'מחק את חוקי הקבוצה', 'example': '/clearrules', 'admin': True},
+      'warn': {'usage': '/warn [סיבה]', 'desc': 'תן אזהרה למשתמש (השב להודעה)', 'example': '/warn ספאם', 'admin': True},
+      'warns': {'usage': '/warns', 'desc': 'בדוק כמה אזהרות למשתמש (השב להודעה)', 'example': '/warns', 'admin': False},
+      'resetwarns': {'usage': '/resetwarns', 'desc': 'אפס אזהרות למשתמש (השב להודעה)', 'example': '/resetwarns', 'admin': True},
+      'setwarn': {'usage': '/setwarn <מספר>', 'desc': 'הגדר מגבלת אזהרות', 'example': '/setwarn 3', 'admin': True},
+      'kick': {'usage': '/kick', 'desc': 'בעט משתמש מהקבוצה (השב להודעה)', 'example': '/kick', 'admin': True},
+      'ban': {'usage': '/ban', 'desc': 'חסום משתמש מהקבוצה (השב להודעה)', 'example': '/ban', 'admin': True},
+      'unban': {'usage': '/unban <טלפון>', 'desc': 'בטל חסימה של משתמש', 'example': '/unban 972501234567', 'admin': True},
+      'add': {'usage': '/add <טלפון>', 'desc': 'הוסף משתמש לקבוצה', 'example': '/add 972501234567', 'admin': True},
+      'invite': {'usage': '/invite', 'desc': 'קבל לינק הזמנה לקבוצה', 'example': '/invite', 'admin': True},
+      'delcmds': {'usage': '/delcmds <on|off|status>', 'desc': 'הפעל/כבה מחיקת פקודות', 'example': '/delcmds on', 'admin': True},
+      'welcome': {'usage': '/welcome', 'desc': 'הצג הודעת קבלת פנים נוכחית', 'example': '/welcome', 'admin': False},
+      'setwelcome': {'usage': '/setwelcome <הודעה>', 'desc': 'הגדר הודעת קבלת פנים. השתמש ב-{mention} לתיוג', 'example': '/setwelcome ברוך הבא {mention}!', 'admin': True},
+      'blacklist': {'usage': '/blacklist', 'desc': 'הצג רשימת מילים חסומות', 'example': '/blacklist', 'admin': False},
+      'addblacklist': {'usage': '/addblacklist <מילה>', 'desc': 'הוסף מילה לרשימה השחורה', 'example': '/addblacklist ספאם', 'admin': True},
+      'rmblacklist': {'usage': '/rmblacklist <מילה>', 'desc': 'הסר מילה מהרשימה השחורה', 'example': '/rmblacklist ספאם', 'admin': True},
+      'lock': {'usage': '/lock <סוג>', 'desc': 'נעל סוג תוכן (links/stickers/media)', 'example': '/lock links', 'admin': True},
+      'unlock': {'usage': '/unlock <סוג>', 'desc': 'בטל נעילה', 'example': '/unlock links', 'admin': True},
+      'locks': {'usage': '/locks', 'desc': 'הצג נעילות פעילות', 'example': '/locks', 'admin': False},
+      'lang': {'usage': '/lang [he|en]', 'desc': 'הצג או שנה שפה', 'example': '/lang he', 'admin': True},
+      'setlang': {'usage': '/setlang <he|en>', 'desc': 'שנה שפת הבוט', 'example': '/setlang en', 'admin': True},
+      'aimod': {'usage': '/aimod [on|off]', 'desc': 'הפעל/כבה מודרציית AI או הצג סטטוס', 'example': '/aimod on', 'admin': True},
+      'aimodstatus': {'usage': '/aimodstatus', 'desc': 'בדוק הגדרות AI', 'example': '/aimodstatus', 'admin': False},
+      'aimodset': {'usage': '/aimodset <קטגוריה> <סף>', 'desc': 'כוונן רגישות AI (0-100)', 'example': '/aimodset toxicity 70', 'admin': True},
+      'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'החלף מנוע AI', 'example': '/aimodbackend perspective', 'admin': True},
+      'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'הגדר API key למנוע', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
+      'aihelp': {'usage': '/aihelp', 'desc': 'מדריך מפורט ל-AI Moderation', 'example': '/aihelp', 'admin': False},
+      'aitest': {'usage': '/aitest <טקסט או ציטוט>', 'desc': 'בדוק הודעה עם AI והצג ציונים', 'example': '/aitest (השב להודעה)', 'admin': True},
+   },
+   'en': {
+      'start': {'usage': '/start', 'desc': 'Start the bot and get welcome message', 'example': '/start', 'admin': False},
+      'help': {'usage': '/help [command]', 'desc': 'Show command list or info about specific command', 'example': '/help warn', 'admin': False},
+      'info': {'usage': '/info', 'desc': 'Show bot information', 'example': '/info', 'admin': False},
+      'ping': {'usage': '/ping', 'desc': 'Check if bot is running', 'example': '/ping', 'admin': False},
+      'rules': {'usage': '/rules', 'desc': 'Show group rules', 'example': '/rules', 'admin': False},
+      'setrules': {'usage': '/setrules <text>', 'desc': 'Set group rules', 'example': '/setrules 1. Be nice\n2. No spam', 'admin': True},
+      'clearrules': {'usage': '/clearrules', 'desc': 'Clear group rules', 'example': '/clearrules', 'admin': True},
+      'warn': {'usage': '/warn [reason]', 'desc': 'Warn a user (reply to message)', 'example': '/warn spam', 'admin': True},
+      'warns': {'usage': '/warns', 'desc': 'Check user warnings (reply to message)', 'example': '/warns', 'admin': False},
+      'resetwarns': {'usage': '/resetwarns', 'desc': 'Reset user warnings (reply to message)', 'example': '/resetwarns', 'admin': True},
+      'setwarn': {'usage': '/setwarn <number>', 'desc': 'Set warn limit', 'example': '/setwarn 3', 'admin': True},
+      'kick': {'usage': '/kick', 'desc': 'Kick user from group (reply to message)', 'example': '/kick', 'admin': True},
+      'ban': {'usage': '/ban', 'desc': 'Ban user from group (reply to message)', 'example': '/ban', 'admin': True},
+      'unban': {'usage': '/unban <phone>', 'desc': 'Unban a user', 'example': '/unban 972501234567', 'admin': True},
+      'add': {'usage': '/add <phone>', 'desc': 'Add user to group', 'example': '/add 972501234567', 'admin': True},
+      'invite': {'usage': '/invite', 'desc': 'Get group invite link', 'example': '/invite', 'admin': True},
+      'delcmds': {'usage': '/delcmds <on|off|status>', 'desc': 'Enable/disable command deletion', 'example': '/delcmds on', 'admin': True},
+      'welcome': {'usage': '/welcome', 'desc': 'Show current welcome message', 'example': '/welcome', 'admin': False},
+      'setwelcome': {'usage': '/setwelcome <message>', 'desc': 'Set welcome message. Use {mention} to tag', 'example': '/setwelcome Welcome {mention}!', 'admin': True},
+      'blacklist': {'usage': '/blacklist', 'desc': 'Show blacklisted words', 'example': '/blacklist', 'admin': False},
+      'addblacklist': {'usage': '/addblacklist <word>', 'desc': 'Add word to blacklist', 'example': '/addblacklist spam', 'admin': True},
+      'rmblacklist': {'usage': '/rmblacklist <word>', 'desc': 'Remove word from blacklist', 'example': '/rmblacklist spam', 'admin': True},
+      'lock': {'usage': '/lock <type>', 'desc': 'Lock content type (links/stickers/media)', 'example': '/lock links', 'admin': True},
+      'unlock': {'usage': '/unlock <type>', 'desc': 'Unlock content', 'example': '/unlock links', 'admin': True},
+      'locks': {'usage': '/locks', 'desc': 'Show active locks', 'example': '/locks', 'admin': False},
+      'lang': {'usage': '/lang [he|en]', 'desc': 'Show or change language', 'example': '/lang he', 'admin': True},
+      'setlang': {'usage': '/setlang <he|en>', 'desc': 'Change bot language', 'example': '/setlang en', 'admin': True},
+      'aimod': {'usage': '/aimod [on|off]', 'desc': 'Enable/disable AI moderation or show status', 'example': '/aimod on', 'admin': True},
+      'aimodstatus': {'usage': '/aimodstatus', 'desc': 'Check AI settings', 'example': '/aimodstatus', 'admin': False},
+      'aimodset': {'usage': '/aimodset <category> <threshold>', 'desc': 'Adjust AI sensitivity (0-100)', 'example': '/aimodset toxicity 70', 'admin': True},
+      'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'Change AI engine', 'example': '/aimodbackend perspective', 'admin': True},
+      'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'Set API key for engine', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
+      'aihelp': {'usage': '/aihelp', 'desc': 'Detailed AI Moderation guide', 'example': '/aihelp', 'admin': False},
+      'aitest': {'usage': '/aitest <text or reply>', 'desc': 'Test message with AI and show scores', 'example': '/aitest (reply to message)', 'admin': True},
+   }
+}
+
 
 def get_text(lang_code: str, key: str, **kwargs) -> str:
     """
@@ -344,3 +420,20 @@ def get_text(lang_code: str, key: str, **kwargs) -> str:
     """
     text = TRANSLATIONS.get(lang_code, {}).get(key, TRANSLATIONS['en'].get(key, key))
     return text.format(**kwargs) if kwargs else text
+
+
+def get_chat_text(chat_id: str, key: str, **kwargs) -> str:
+    """
+    Get translated text for a specific chat
+    
+    Args:
+        chat_id: Chat identifier
+        key: Translation key
+        **kwargs: Format parameters
+    
+    Returns:
+        Translated and formatted text
+    """
+    from .services.language_service import get_chat_language
+    lang = get_chat_language(chat_id)
+    return get_text(lang, key, **kwargs)

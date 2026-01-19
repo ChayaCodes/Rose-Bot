@@ -36,14 +36,18 @@ class WhatsAppBridgeClient:
         def webhook():
             data = flask_request.json
             event_type = data.get('type', 'message')
+            logger.info(f"Webhook received: {event_type}")
+            logger.info(f"Registered handlers: {len(self.message_handlers)}")
             
             if event_type == 'message':
                 msg_data = data.get('data', {})
+                logger.info(f"Message data: {msg_data.get('body', '')[:50]}")
                 for handler in self.message_handlers:
                     try:
+                        logger.info(f"Calling handler: {handler}")
                         handler(msg_data)
                     except Exception as e:
-                        logger.error(f"Error in message handler: {e}")
+                        logger.error(f"Error in message handler: {e}", exc_info=True)
             elif event_type == 'group_join':
                 for handler in self.group_join_handlers:
                     try:

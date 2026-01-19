@@ -1,0 +1,32 @@
+{
+  "name": "rose-bot-whatsapp-bridge",
+  "version": "1.0.0",
+  "description": "WhatsApp Web Bridge for Rose Bot",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js",
+    "dev": "nodemon bridge.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "bridge",
+    "python"
+  ],
+  "author": "Rose Bot Team",
+  "license": "MIT",
+  "dependencies": {
+    "whatsapp-web.js": "^1.23.0",
+    "qrcode-terminal": "^0.12.0",
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

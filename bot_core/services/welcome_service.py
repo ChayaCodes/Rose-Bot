@@ -25,7 +25,7 @@ def get_welcome_message(chat_id: str) -> Optional[str]:
     session = get_session()
     try:
         welcome = session.query(Welcome).filter_by(chat_id=chat_id).first()
-        return welcome.welcome_text if welcome else None
+        return welcome.message if welcome and welcome.enabled else None
     finally:
         session.close()
 
@@ -42,9 +42,9 @@ def set_welcome_message(chat_id: str, message: str) -> None:
     try:
         welcome = session.query(Welcome).filter_by(chat_id=chat_id).first()
         if welcome:
-            welcome.welcome_text = message
+            welcome.message = message
         else:
-            welcome = Welcome(chat_id=chat_id, welcome_text=message)
+            welcome = Welcome(chat_id=chat_id, message=message)
             session.add(welcome)
         session.commit()
         

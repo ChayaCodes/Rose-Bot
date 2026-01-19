@@ -16,9 +16,32 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
 from bot_core.content_filter import get_moderator, ModerationResult
-from bot_core.db_models import Base, Warn, WarnSettings, Ban, Rules, Welcome, BlacklistWord, Lock, ChatLanguage, AIModeration
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text
-from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session
+from bot_core.i18n import get_chat_text as get_text, TRANSLATIONS, LANG_NAMES, COMMAND_HELP
+
+# Import services
+from bot_core.services.warn_service import (
+    warn_user, get_user_warns, reset_user_warns, set_warn_limit, get_warn_limit, get_warns, get_warn_settings
+)
+from bot_core.services.rules_service import get_rules, set_rules, clear_rules
+from bot_core.services.welcome_service import (
+    get_welcome_message as get_welcome,
+    set_welcome_message as set_welcome,
+    format_welcome_message
+)
+from bot_core.services.blacklist_service import (
+    add_blacklist_word as add_blacklist,
+    remove_blacklist_word as remove_blacklist,
+    get_blacklist_words as get_blacklist,
+    check_blacklist
+)
+from bot_core.services.locks_service import set_lock, get_locks, is_locked, check_message_locks
+from bot_core.services.language_service import get_chat_language as get_chat_lang, set_chat_language as set_chat_lang
+from bot_core.services.ban_service import add_ban, remove_ban, is_banned, get_banned_users
+from bot_core.services.chat_config_service import should_delete_commands, set_delete_commands
+from bot_core.services.ai_moderation_service import (
+    get_ai_settings, set_ai_enabled, set_ai_backend, set_ai_threshold, set_ai_action,
+    check_content_toxicity, SUPPORTED_BACKENDS
+)
 
 # Setup logging
 logging.basicConfig(
@@ -33,743 +56,6 @@ try:
 except ImportError:
     logger.error("Copy sample_wa_config.py to wa_config.py and configure it first!")
     sys.exit(1)
-
-# Database setup
-Base = declarative_base()
-engine = create_engine(Config.SQLALCHEMY_DATABASE_URI)
-db_session = scoped_session(sessionmaker(bind=engine))
-
-
-# ============ DATABASE MODELS ============
-
-class Warn(Base):
-    __tablename__ = 'warns'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(String(100), nullable=False)
-    chat_id = Column(String(100), nullable=False)
-    reason = Column(Text)
-    warned_by = Column(String(100))
-    date = Column(DateTime, default=datetime.utcnow)
-
-
-class WarnSettings(Base):
-    __tablename__ = 'warn_settings'
-    chat_id = Column(String(100), primary_key=True)
-    warn_limit = Column(Integer, default=3)
-    soft_warn = Column(Boolean, default=False)  # True=kick, False=ban
-
-
-class Rules(Base):
-    __tablename__ = 'rules'
-    chat_id = Column(String(100), primary_key=True)
-    rules = Column(Text)
-
-
-class Welcome(Base):
-    __tablename__ = 'welcome'
-    chat_id = Column(String(100), primary_key=True)
-    message = Column(Text)
-    enabled = Column(Boolean, default=True)
-
-
-class Blacklist(Base):
-    __tablename__ = 'blacklist'
-    id = Column(Integer, primary_key=True)
-    chat_id = Column(String(100), nullable=False)
-    word = Column(String(255), nullable=False)
-
-
-class Locks(Base):
-    __tablename__ = 'locks'
-    chat_id = Column(String(100), primary_key=True)
-    lock_links = Column(Boolean, default=False)
-    lock_stickers = Column(Boolean, default=False)
-    lock_media = Column(Boolean, default=False)
-
-
-class FloodControl(Base):
-    __tablename__ = 'flood_control'
-    chat_id = Column(String(100), primary_key=True)
-    limit = Column(Integer, default=5)  # messages
-    timeframe = Column(Integer, default=10)  # seconds
-
-
-class AIModerationSettings(Base):
-    __tablename__ = 'ai_moderation'
-    chat_id = Column(String(100), primary_key=True)
-    enabled = Column(Boolean, default=False)
-    backend = Column(String(20), default='rules')  # perspective, azure, openai, detoxify, rules
-    api_key = Column(String(255), nullable=True)  # Group's own API key
-    toxicity_threshold = Column(Integer, default=70)  # 0-100
-    spam_threshold = Column(Integer, default=70)
-    sexual_threshold = Column(Integer, default=70)
-    threat_threshold = Column(Integer, default=60)
-    auto_delete = Column(Boolean, default=True)
-    auto_warn = Column(Boolean, default=False)
-
-
-class Language(Base):
-    __tablename__ = 'language'
-    chat_id = Column(String(100), primary_key=True)
-    lang_code = Column(String(10), default='he')  # he, en, etc.
-
-
-class BannedUser(Base):
-    __tablename__ = 'banned_users'
-    id = Column(Integer, primary_key=True)
-    chat_id = Column(String(100), nullable=False)
-    user_id = Column(String(100), nullable=False)
-    banned_at = Column(DateTime, default=datetime.utcnow)
-    banned_by = Column(String(100))
-
-
-class ChatConfig(Base):
-    __tablename__ = 'chat_config'
-    chat_id = Column(String(100), primary_key=True)
-    delete_commands = Column(Boolean, default=False)  # Delete command messages after processing
-    
-
-# Create tables
-Base.metadata.create_all(engine)
-
-
-# ============ TRANSLATIONS ============
-
-TRANSLATIONS = {
-    'he': {
-        # General
-        'start_msg': '''👋 *שלום! אני Rose Bot לווטסאפ*
-
-אני עוזר לנהל קבוצות WhatsApp עם:
-• אזהרות וניהול
-• חוקים והודעות קבלת פנים
-• רשימה שחורה למילים
-• נעילות אנטי-ספאם
-• ועוד הרבה!
-
-שלח /help כדי לראות את כל הפקודות.''',
-        'help_general': '📚 *פקודות זמינות*\n\n*כללי:*',
-        'help_rules': '*חוקים:*',
-        'help_warns': '*אזהרות:*',
-        'help_moderation': '*ניהול:*',
-        'help_welcome': '*קבלת פנים:*',
-        'help_blacklist': '*רשימה שחורה:*',
-        'help_locks': '*נעילות:*',
-        'help_ai': '*AI Moderation:*',
-        'help_note': '_הערה: פקודות מנהל דורשות הרשאות מנהל קבוצה_',
-        'admin_only': '❌ פקודה זו זמינה רק למנהלי קבוצה',
-        'owner_only': '❌ פקודה זו זמינה רק לבעלים של הבוט',
-        'reply_to_user': '❌ השב להודעה של משתמש כדי להשתמש בפקודה זו',
-        'unknown_command': '❓ פקודה לא מוכרת: /{command}\n\nשלח /help לרשימת פקודות',
-        'error_occurred': '❌ אירעה שגיאה. נסה שוב מאוחר יותר.',
-        
-        # Rules
-        'rules_show': '📜 *חוקי הקבוצה:*\n\n{rules}',
-        'rules_not_set': 'ℹ️ לא הוגדרו חוקים לקבוצה זו.\n\nמנהלים יכולים להגדיר חוקים עם /setrules',
-        'rules_set': '✅ החוקים עודכנו!',
-        'rules_cleared': '✅ החוקים נמחקו',
-        
-        # Warns
-        'warn_issued': '⚠️ {user} קיבל אזהרה!\n*סיבה:* {reason}\n*אזהרות:* {count}/{limit}',
-        'warn_limit_reached': '🚫 {user} הגיע למגבלת האזהרות!',
-        'warn_reason_default': 'ללא סיבה',
-        'warns_count': '⚠️ {user} יש לו {count} אזהרות מתוך {limit}',
-        'warns_none': 'ℹ️ אין אזהרות ל-{user}',
-        'warns_reset': '✅ האזהרות של {user} אופסו',
-        'warn_limit_set': '✅ מגבלת האזהרות הוגדרה ל-{limit}',
-        'warn_limit_invalid': '❌ מספר לא תקין. שימוש: /setwarn <מספר>\nלדוגמה: /setwarn 5',
-        
-        # Moderation
-        'user_kicked': '👢 {user} נבעט מהקבוצה',
-        'user_banned': '🚫 {user} נחסם מהקבוצה',
-        'kick_failed': '❌ לא הצלחתי לבעוט את המשתמש',
-        'ban_failed': '❌ לא הצלחתי לחסום את המשתמש',
-        
-        # Welcome
-        'welcome_set': '✅ הודעת קבלת הפנים עודכנה!\nתשתמש ב-{mention} כדי לתייג משתמשים חדשים',
-        'welcome_show': '👋 *הודעת קבלת פנים נוכחית:*\n\n{message}',
-        'welcome_not_set': 'ℹ️ לא הוגדרה הודעת קבלת פנים\n\nמנהלים יכולים להגדיר עם /setwelcome',
-        
-        # Blacklist
-        'blacklist_show': '🚫 *מילים חסומות:*\n{words}',
-        'blacklist_empty': 'ℹ️ אין מילים חסומות בקבוצה זו',
-        'blacklist_added': '✅ המילה "{word}" נוספה לרשימה השחורה',
-        'blacklist_removed': '✅ המילה "{word}" הוסרה מהרשימה השחורה',
-        'blacklist_not_found': '❌ המילה לא נמצאה ברשימה השחורה',
-        'blacklist_detected': '🚫 הודעה מכילה מילה חסומה ונמחקה',
-        
-        # Locks
-        'lock_enabled': '🔒 {lock_type} ננעל',
-        'lock_disabled': '🔓 {lock_type} נפתח',
-        'locks_show': '🔐 *נעילות נוכחיות:*\n\n{locks}',
-        'locks_none': 'ℹ️ אין נעילות פעילות',
-        'lock_invalid': '❌ סוג נעילה לא חוקי. זמין: links, stickers, media',
-        'lock_triggered': '🔒 {lock_type} ננעל בקבוצה זו',
-        
-        # AI Moderation
-        'aimod_enabled': '''✅ *AI Moderation הופעל!*
-
-הבוט יזהה אוטומטית:
-🤖 תוכן טוקסי/פוגעני
-🚫 ספאם
-🔞 תוכן מיני
-⚠️ איומים
-
-📋 *Backend נוכחי:* Rule-based (ללא צורך ב-API key)
-
-*פקודות שימושיות:*
-• /aimodstatus - בדיקת הגדרות
-• /aimodset - כוונון רגישות
-• /aimodbackend - החלפת מנוע AI
-• /aimodkey - הגדרת API key
-
-💡 *טיפ:* Backend ה-rules עובד מצוין לעברית ללא עלות!
-לשיפור נוסף, תוכל להוסיף API key של Perspective או Azure.
-
-📚 למידע נוסף: AI_MODERATION_SETUP.md''',
-        'aimod_disabled': '❌ AI Moderation כבוי',
-        'aimod_threshold_invalid': '❌ הסף חייב להיות מספר בין 0-100',
-        
-        # Language
-        'lang_changed': '✅ השפה שונתה ל-{lang}!\n🌍 כל ההודעות יהיו עכשיו ב{lang_name}',
-        'lang_current': 'ℹ️ השפה הנוכחית: {lang_name}\n\nזמין: עברית (he), English (en)',
-        'lang_invalid': '❌ קוד שפה לא חוקי. זמין: he, en',
-        
-        # Ping
-        'pong': '🏓 פונג!',
-        
-        # Info
-        'bot_info': '''ℹ️ *מידע על הבוט*
-
-*שם:* Rose Bot (WhatsApp)
-*גרסה:* 2.0 Full
-*פלטפורמה:* WhatsApp
-*סטטוס:* פועל ✅
-
-*תכונות:*
-✅ אזהרות וחסימות
-✅ חוקים וקבלת פנים
-✅ סינון מילים
-✅ נעילת לינקים/מדיה
-✅ מודרציית AI 🤖
-✅ אנטי-ספאם
-
-*המזהה שלך:* {from_id}
-*מזהה צ'אט:* {chat_id}''',
-        
-        # Usage messages
-        'usage_setrules': '❌ שימוש: /setrules <טקסט חוקים>',
-        'usage_setwarn': '❌ שימוש: /setwarn <מספר>\n\nדוגמה: /setwarn 3',
-        'usage_setwelcome': '❌ שימוש: /setwelcome <הודעה>\n\nתוכל להשתמש ב-{mention} לתיוג משתמשים חדשים',
-        'usage_addblacklist': '❌ שימוש: /addblacklist <מילה>',
-        'usage_rmblacklist': '❌ שימוש: /rmblacklist <מילה>',
-        'usage_lock': '❌ שימוש: /lock <סוג>\n\nסוגים זמינים: links, stickers, media',
-        'usage_unlock': '❌ שימוש: /unlock <סוג>\n\nסוגים זמינים: links, stickers, media',
-        'usage_aimod': '❌ שימוש: /aimod on|off\n\nדוגמה: /aimod on',
-        'usage_aimodset': '''❌ שימוש: /aimodset <קטגוריה> <סף>
-
-*קטגוריות:*
-• toxicity - תוכן פוגעני
-• spam - ספאם
-• sexual - תוכן מיני
-• threat - איומים
-
-*סף:* 0-100 (גבוה יותר = מחמיר יותר)
-דוגמה: /aimodset spam 70''',
-        'warn_limit_set': '✅ מגבלת אזהרות הוגדרה ל-{limit}',
-        'locked': '🔒 {lock_type} ננעל',
-        'unlocked': '🔓 {lock_type} נפתח',
-        
-        # Blacklist & moderation
-        'blacklist_detected': '⚠️ ההודעה נמחקה: מכילה מילה אסורה',
-        'lock_triggered': '🔒 {lock_type} ננעל בקבוצה זו',
-        
-        # Warns
-        'warn_usage': '⚠️ *אזהרת משתמש*\n\nהשב להודעה של משתמש עם /warn [סיבה]',
-        'no_warns': '✅ אין אזהרות',
-        'warns_list': '⚠️ *אזהרות: {count}/{limit}*\n\n',
-        'no_reason': 'ללא סיבה',
-        'resetwarns_usage': '❌ השב להודעה של משתמש כדי לאפס אזהרות',
-        'warns_reset_success': '✅ האזהרות אופסו',
-        
-        # Kick/Ban/Unban/Add
-        'kick_usage': '👢 *בעיטת משתמש*\n\nהשב להודעה של משתמש עם /kick\n\n_הערה: הבוט צריך הרשאות מנהל_',
-        'ban_usage': '🚫 *חסימת משתמש*\n\nהשב להודעה של משתמש עם /ban\n\n_הערה: הבוט צריך הרשאות מנהל_',
-        'unban_usage': '✅ *ביטול חסימה*\n\nשימוש: /unban <מספר טלפון>\n\nדוגמה: /unban 972501234567',
-        'user_unbanned': '✅ {user} הוסר מרשימת החסומים',
-        'user_not_banned': 'ℹ️ המשתמש לא נמצא ברשימת החסומים',
-        'add_usage': '➕ *הוספת משתמש לקבוצה*\n\nשימוש: /add <מספר טלפון>\n\nדוגמה: /add 972501234567\nאו: /add 972501234567,972509876543',
-        'user_added': '✅ {user} נוסף לקבוצה',
-        'user_add_failed': '❌ לא הצלחתי להוסיף את {user}\n\nסיבות אפשריות:\n• המשתמש חסם את הבוט\n• הגדרות פרטיות של המשתמש\n• הבוט לא מנהל',
-        'users_added': '✅ {count} משתמשים נוספו לקבוצה',
-        'invite_link': '🔗 *לינק הזמנה לקבוצה:*\n\n{link}',
-        'invite_failed': '❌ לא הצלחתי ליצור לינק הזמנה',
-        'invalid_phone': '❌ מספר טלפון לא תקין: {phone}\n\nפורמט נכון: 972501234567 (ללא +, -, רווחים)',
-        
-        # Delete Commands
-        'delete_commands_on': '✅ מחיקת פקודות הופעלה\n\nמעכשיו פקודות שנשלחות לבוט יימחקו אוטומטית',
-        'delete_commands_off': '❌ מחיקת פקודות כובתה\n\nפקודות יישארו בצ\'אט',
-        'delete_commands_status': '🗑️ *מחיקת פקודות:* {status}',
-        
-        # Welcome
-        'welcome_current': '👋 *הודעת קבלת פנים נוכחית:*\n\n{message}',
-        'welcome_not_set_admin': 'ℹ️ לא הוגדרה הודעת קבלת פנים.\n\nמנהלים יכולים להגדיר עם /setwelcome',
-        
-        # Blacklist
-        'blacklist_list': '🚫 *מילים ברשימה שחורה ({count}):*\n\n',
-        'blacklist_empty_admin': 'ℹ️ אין מילים ברשימה השחורה.\n\nמנהלים יכולים להוסיף עם /addblacklist',
-        
-        # Locks
-        'locks_status': '🔒 *נעילות נוכחיות:*\n\n',
-        'links_label': 'לינקים',
-        'stickers_label': 'מדבקות',
-        'media_label': 'מדיה',
-        'lock_locked': '🔒 נעול',
-        'lock_unlocked': '🔓 פתוח',
-        
-        # AI Moderation
-        'aimod_on': '''✅ *AI Moderation הופעל!*
-
-הבוט יזהה אוטומטית:
-🤖 תוכן טוקסי/פוגעני
-🚫 ספאם
-🔞 תוכן מיני
-⚠️ איומים
-
-*פקודות שימושיות:*
-• /aimodstatus - בדיקת הגדרות
-• /aihelp - מדריך מלא
-
-💡 שלח /aihelp למידע נוסף''',
-        'aimod_off': '❌ AI Moderation כבוי',
-        'aimod_status_disabled': '❌ AI Moderation *כבוי*\n\nשלח /aimod on להפעלה',
-        'aimod_status_header': '🤖 *סטטוס AI Moderation*\n\n',
-        'status_enabled': '✅ פעיל',
-        'status_disabled': '❌ כבוי',
-        'api_key_set': '✅ מוגדר',
-        'api_key_not_set': '❌ לא מוגדר (משתמש בגלובלי)',
-        'thresholds_label': '*ספים:*',
-        'auto_delete_label': 'מחיקה אוטומטית',
-        'auto_warn_label': 'אזהרה אוטומטית',
-        'category_invalid': '❌ קטגוריה לא חוקית. בחר מתוך: {categories}',
-        'threshold_set': '✅ סף {category} הוגדר ל-{threshold}%',
-        
-        # Help for specific commands
-        'help_cmd_not_found': '❓ פקודה לא נמצאה: /{cmd}\n\nשלח /help לרשימת פקודות',
-        'help_cmd_header': '📖 *עזרה ל-/{cmd}*\n\n',
-        'help_cmd_usage': '*שימוש:* {usage}\n',
-        'help_cmd_desc': '*תיאור:* {desc}\n',
-        'help_cmd_example': '*דוגמה:* {example}',
-        'help_cmd_admin': '\n\n_🔐 פקודה זו דורשת הרשאות מנהל_',
-        'help_use_cmd': '\n\n💡 שלח `/help <פקודה>` למידע מפורט על פקודה',
-        
-        # AI Help
-        'aihelp_full': '''🤖 *מדריך AI Moderation*
-
-📝 *פקודות זמינות:*
-• /aimod on|​off - הפעל/כבה (מנהל)
-• /aimodstatus - בדוק הגדרות
-• /aimodbackend <backend> - החלף מנוע (מנהל)
-• /aimodkey <backend> <key> - הגדר API key (מנהל)
-• /aimodset <קטגוריה> <מספר> - כוונן רגישות (מנהל)
-
-🔧 *מנועות זמינים:*
-
-📋 *rules* (ברירת מחדל)
-   • שפות: עברית + אנגלית
-   • עלות: חינם
-   • API Key: לא נדרש
-
-🌍 *perspective* (מומלץ לעברית!)
-   • שפות: עברית + אנגלית
-   • עלות: חינם (1 QPS)
-   • קבל API Key: https://perspectiveapi.com
-   • הגדרה: /aimodkey perspective <key>
-
-☁️ *azure* (מדויק מאוד)
-   • שפות: עברית + אנגלית
-   • עלות: חינם עד 5,000/חודש
-   • קבל API Key: Azure Portal
-   • הגדרה: /aimodkey azure <key>
-
-🤖 *openai*
-   • שפות: אנגלית (בעיקר)
-   • עלות: חינם (free tier)
-   • קבל API Key: platform.openai.com
-   • הגדרה: /aimodkey openai <key>
-
-💻 *detoxify*
-   • שפות: אנגלית
-   • עלות: חינם (מקומי)
-   • API Key: לא נדרש
-   • דרישה: pip install detoxify
-
-🎯 *קטגוריות לכיוון:*
-• toxicity - תוכן פוגעני
-• spam - ספאם
-• sexual - תוכן מיני
-• threat - איומים
-
-💡 דוגמה: /aimodset toxicity 70''',
-    },
-    'en': {
-        # General
-        'start_msg': '''👋 *Hello! I'm Rose Bot for WhatsApp*
-
-I help manage WhatsApp groups with:
-• Warnings and moderation
-• Rules and welcome messages
-• Word blacklist
-• Anti-spam locks
-• And much more!
-
-Send /help to see all commands.''',
-        'help_general': '📚 *Available Commands*\n\n*General:*',
-        'help_rules': '*Rules:*',
-        'help_warns': '*Warns:*',
-        'help_moderation': '*Moderation:*',
-        'help_welcome': '*Welcome:*',
-        'help_blacklist': '*Blacklist:*',
-        'help_locks': '*Locks:*',
-        'help_ai': '*AI Moderation:*',
-        'help_note': '_Note: Admin commands require group admin rights_',
-        'admin_only': '❌ This command is only available to group admins',
-        'owner_only': '❌ This command is only available to bot owner',
-        'reply_to_user': '❌ Reply to a user message to use this command',
-        'unknown_command': '❓ Unknown command: /{command}\n\nSend /help for available commands',
-        'error_occurred': '❌ An error occurred. Please try again later.',
-        
-        # Rules
-        'rules_show': '📜 *Group Rules:*\n\n{rules}',
-        'rules_not_set': 'ℹ️ No rules set for this group.\n\nAdmins can set rules with /setrules',
-        'rules_set': '✅ Rules updated!',
-        'rules_cleared': '✅ Rules cleared',
-        
-        # Warns
-        'warn_issued': '⚠️ {user} has been warned!\n*Reason:* {reason}\n*Warns:* {count}/{limit}',
-        'warn_limit_reached': '🚫 {user} reached the warn limit!',
-        'warn_reason_default': 'No reason provided',
-        'warns_count': '⚠️ {user} has {count} warns out of {limit}',
-        'warns_none': 'ℹ️ {user} has no warns',
-        'warns_reset': '✅ {user} warns have been reset',
-        'warn_limit_set': '✅ Warn limit set to {limit}',
-        'warn_limit_invalid': '❌ Invalid number. Usage: /setwarn <number>\nExample: /setwarn 5',
-        
-        # Moderation
-        'user_kicked': '👢 {user} has been kicked',
-        'user_banned': '🚫 {user} has been banned',
-        'kick_failed': '❌ Failed to kick user',
-        'ban_failed': '❌ Failed to ban user',
-        
-        # Welcome
-        'welcome_set': '✅ Welcome message updated!\nUse {mention} to tag new users',
-        'welcome_show': '👋 *Current welcome message:*\n\n{message}',
-        'welcome_not_set': 'ℹ️ No welcome message set\n\nAdmins can set one with /setwelcome',
-        
-        # Blacklist
-        'blacklist_show': '🚫 *Blacklisted words:*\n{words}',
-        'blacklist_empty': 'ℹ️ No blacklisted words in this group',
-        'blacklist_added': '✅ "{word}" added to blacklist',
-        'blacklist_removed': '✅ "{word}" removed from blacklist',
-        'blacklist_not_found': '❌ Word not found in blacklist',
-        'blacklist_detected': '🚫 Message contains blacklisted word and was deleted',
-        
-        # Locks
-        'lock_enabled': '🔒 {lock_type} locked',
-        'lock_disabled': '🔓 {lock_type} unlocked',
-        'locks_show': '🔐 *Current locks:*\n\n{locks}',
-        'locks_none': 'ℹ️ No active locks',
-        'lock_invalid': '❌ Invalid lock type. Available: links, stickers, media',
-        'lock_triggered': '🔒 {lock_type} is locked in this group',
-        
-        # AI Moderation
-        'aimod_enabled': '''✅ *AI Moderation Enabled!*
-
-The bot will automatically detect:
-🤖 Toxic/offensive content
-🚫 Spam
-🔞 Sexual content
-⚠️ Threats
-
-📋 *Current Backend:* Rule-based (no API key needed)
-
-*Useful commands:*
-• /aimodstatus - Check settings
-• /aimodset - Adjust sensitivity
-• /aimodbackend - Change AI engine
-• /aimodkey - Set API key
-
-💡 *Tip:* The rules backend works great for Hebrew at no cost!
-For better results, add a Perspective or Azure API key.
-
-📚 More info: AI_MODERATION_SETUP.md''',
-        'aimod_disabled': '❌ AI Moderation disabled',
-        'aimod_threshold_invalid': '❌ Threshold must be a number between 0-100',
-        
-        # Language
-        'lang_changed': '✅ Language changed to {lang}!\n🌍 All messages will now be in {lang_name}',
-        'lang_current': 'ℹ️ Current language: {lang_name}\n\nAvailable: עברית (he), English (en)',
-        'lang_invalid': '❌ Invalid language code. Available: he, en',
-        
-        # Ping
-        'pong': '🏓 Pong!',
-        
-        # Info
-        'bot_info': '''ℹ️ *Bot Information*
-
-*Name:* Rose Bot (WhatsApp)
-*Version:* 2.0 Full
-*Platform:* WhatsApp
-*Status:* Running ✅
-
-*Features:*
-✅ Warns & Bans
-✅ Rules & Welcome
-✅ Blacklist Filter
-✅ Link/Media Locks
-✅ AI Moderation 🤖
-✅ Anti-spam
-
-*Your ID:* {from_id}
-*Chat ID:* {chat_id}''',
-        
-        # Usage messages
-        'usage_setrules': '❌ Usage: /setrules <rules text>',
-        'usage_setwarn': '❌ Usage: /setwarn <number>\n\nExample: /setwarn 3',
-        'usage_setwelcome': '❌ Usage: /setwelcome <message>\n\nYou can use {mention} to mention new users',
-        'usage_addblacklist': '❌ Usage: /addblacklist <word>',
-        'usage_rmblacklist': '❌ Usage: /rmblacklist <word>',
-        'usage_lock': '❌ Usage: /lock <type>\n\nValid types: links, stickers, media',
-        'usage_unlock': '❌ Usage: /unlock <type>\n\nValid types: links, stickers, media',
-        'usage_aimod': '❌ Usage: /aimod [on|off]\n\n‼️ בלי פרמטר: מציג סטטוס נוכחי\nExample: /aimod on',
-        'usage_aimodset': '''❌ Usage: /aimodset <category> <threshold>
-
-*Categories:*
-• toxicity - Toxic/hateful content
-• spam - Spam messages
-• sexual - Sexual content
-• threat - Threatening messages
-
-*Threshold:* 0-100 (higher = more strict)
-Example: /aimodset spam 70''',
-        'warn_limit_set': '✅ Warn limit set to {limit}',
-        'locked': '🔒 {lock_type} locked',
-        'unlocked': '🔓 {lock_type} unlocked',
-        
-        # Blacklist & moderation
-        'blacklist_detected': '⚠️ Message deleted: contains blacklisted word',
-        'lock_triggered': '🔒 {lock_type} is locked in this group',
-        
-        # Warns
-        'warn_usage': '⚠️ *Warn User*\n\nReply to a user\'s message with /warn [reason]',
-        'no_warns': '✅ No warnings',
-        'warns_list': '⚠️ *Warnings: {count}/{limit}*\n\n',
-        'no_reason': 'No reason',
-        'resetwarns_usage': '❌ Reply to a user\'s message to reset warnings',
-        'warns_reset_success': '✅ Warnings reset',
-        
-        # Kick/Ban/Unban/Add
-        'kick_usage': '👢 *Kick User*\n\nReply to a user\'s message with /kick\n\n_Note: Bot needs admin rights_',
-        'ban_usage': '🚫 *Ban User*\n\nReply to a user\'s message with /ban\n\n_Note: Bot needs admin rights_',
-        'unban_usage': '✅ *Unban User*\n\nUsage: /unban <phone number>\n\nExample: /unban 972501234567',
-        'user_unbanned': '✅ {user} removed from ban list',
-        'user_not_banned': 'ℹ️ User not found in ban list',
-        'add_usage': '➕ *Add User to Group*\n\nUsage: /add <phone number>\n\nExample: /add 972501234567\nOr: /add 972501234567,972509876543',
-        'user_added': '✅ {user} added to group',
-        'user_add_failed': '❌ Failed to add {user}\n\nPossible reasons:\n• User blocked the bot\n• User privacy settings\n• Bot is not admin',
-        'users_added': '✅ {count} users added to group',
-        'invite_link': '🔗 *Group Invite Link:*\n\n{link}',
-        'invite_failed': '❌ Failed to generate invite link',
-        'invalid_phone': '❌ Invalid phone number: {phone}\n\nCorrect format: 972501234567 (no +, -, spaces)',
-        
-        # Delete Commands
-        'delete_commands_on': '✅ Command deletion enabled\n\nCommands sent to the bot will now be automatically deleted',
-        'delete_commands_off': '❌ Command deletion disabled\n\nCommands will remain in chat',
-        'delete_commands_status': '🗑️ *Command Deletion:* {status}',
-        
-        # Welcome
-        'welcome_current': '👋 *Current Welcome Message:*\n\n{message}',
-        'welcome_not_set_admin': 'ℹ️ No welcome message set.\n\nAdmins can set one with /setwelcome',
-        
-        # Blacklist
-        'blacklist_list': '🚫 *Blacklisted Words ({count}):*\n\n',
-        'blacklist_empty_admin': 'ℹ️ No blacklisted words in this chat.\n\nAdmins can add with /addblacklist',
-        
-        # Locks
-        'locks_status': '🔒 *Current Locks:*\n\n',
-        'links_label': 'Links',
-        'stickers_label': 'Stickers',
-        'media_label': 'Media',
-        'lock_locked': '🔒 Locked',
-        'lock_unlocked': '🔓 Unlocked',
-        
-        # AI Moderation
-        'aimod_on': '''✅ *AI Moderation Enabled!*
-
-The bot will automatically detect:
-🤖 Toxic/offensive content
-🚫 Spam
-🔞 Sexual content
-⚠️ Threats
-
-*Useful commands:*
-• /aimodstatus - Check settings
-• /aihelp - Full guide
-
-💡 Send /aihelp for more info''',
-        'aimod_off': '❌ AI Moderation disabled',
-        'aimod_status_disabled': '❌ AI Moderation is *disabled*\n\nUse /aimod on to enable',
-        'aimod_status_header': '🤖 *AI Moderation Status*\n\n',
-        'status_enabled': '✅ Enabled',
-        'status_disabled': '❌ Disabled',
-        'api_key_set': '✅ Set',
-        'api_key_not_set': '❌ Not set (using global)',
-        'thresholds_label': '*Thresholds:*',
-        'auto_delete_label': 'Auto-delete',
-        'auto_warn_label': 'Auto-warn',
-        'category_invalid': '❌ Invalid category. Choose from: {categories}',
-        'threshold_set': '✅ {category} threshold set to {threshold}%',
-        
-        # Help for specific commands
-        'help_cmd_not_found': '❓ Command not found: /{cmd}\n\nSend /help for available commands',
-        'help_cmd_header': '📖 *Help for /{cmd}*\n\n',
-        'help_cmd_usage': '*Usage:* {usage}\n',
-        'help_cmd_desc': '*Description:* {desc}\n',
-        'help_cmd_example': '*Example:* {example}',
-        'help_cmd_admin': '\n\n_🔐 This command requires admin permissions_',
-        'help_use_cmd': '\n\n💡 Send `/help <command>` for detailed info about a command',
-        
-        # AI Help
-        'aihelp_full': '''🤖 *AI Moderation Guide*
-
-📝 *Available Commands:*
-• /aimod on|​off - Enable/disable (admin)
-• /aimodstatus - Check settings
-• /aimodbackend <backend> - Change engine (admin)
-• /aimodkey <backend> <key> - Set API key (admin)
-• /aimodset <category> <num> - Adjust sensitivity (admin)
-
-🔧 *Available Backends:*
-
-📋 *rules* (default)
-   • Languages: Hebrew + English
-   • Cost: Free
-   • API Key: Not required
-
-🌍 *perspective* (recommended for Hebrew!)
-   • Languages: Hebrew + English
-   • Cost: Free (1 QPS)
-   • Get API Key: https://perspectiveapi.com
-   • Setup: /aimodkey perspective <key>
-
-☁️ *azure* (very accurate)
-   • Languages: Hebrew + English
-   • Cost: Free up to 5,000/month
-   • Get API Key: Azure Portal
-   • Setup: /aimodkey azure <key>
-
-🤖 *openai*
-   • Languages: English (mainly)
-   • Cost: Free (free tier)
-   • Get API Key: platform.openai.com
-   • Setup: /aimodkey openai <key>
-
-💻 *detoxify*
-   • Languages: English
-   • Cost: Free (local)
-   • API Key: Not required
-   • Requires: pip install detoxify
-
-🎯 *Categories to adjust:*
-• toxicity - Offensive content
-• spam - Spam messages
-• sexual - Adult content
-• threat - Threats
-
-💡 Example: /aimodset toxicity 70''',
-    }
-}
-
-LANG_NAMES = {
-    'he': 'עברית',
-    'en': 'English'
-}
-
-# Command help dictionary for /help <cmd>
-COMMAND_HELP = {
-    'he': {
-        'start': {'usage': '/start', 'desc': 'התחל את הבוט וקבל הודעת פתיחה', 'example': '/start', 'admin': False},
-        'help': {'usage': '/help [פקודה]', 'desc': 'הצג רשימת פקודות או מידע על פקודה ספציפית', 'example': '/help warn', 'admin': False},
-        'info': {'usage': '/info', 'desc': 'הצג מידע על הבוט', 'example': '/info', 'admin': False},
-        'ping': {'usage': '/ping', 'desc': 'בדוק אם הבוט פועל', 'example': '/ping', 'admin': False},
-        'rules': {'usage': '/rules', 'desc': 'הצג את חוקי הקבוצה', 'example': '/rules', 'admin': False},
-        'setrules': {'usage': '/setrules <טקסט>', 'desc': 'הגדר חוקים לקבוצה', 'example': '/setrules 1. היו נחמדים\\n2. אין ספאם', 'admin': True},
-        'clearrules': {'usage': '/clearrules', 'desc': 'מחק את חוקי הקבוצה', 'example': '/clearrules', 'admin': True},
-        'warn': {'usage': '/warn [סיבה]', 'desc': 'תן אזהרה למשתמש (השב להודעה)', 'example': '/warn ספאם', 'admin': True},
-        'warns': {'usage': '/warns', 'desc': 'בדוק כמה אזהרות למשתמש (השב להודעה)', 'example': '/warns', 'admin': False},
-        'resetwarns': {'usage': '/resetwarns', 'desc': 'אפס אזהרות למשתמש (השב להודעה)', 'example': '/resetwarns', 'admin': True},
-        'setwarn': {'usage': '/setwarn <מספר>', 'desc': 'הגדר מגבלת אזהרות', 'example': '/setwarn 3', 'admin': True},
-        'kick': {'usage': '/kick', 'desc': 'בעט משתמש מהקבוצה (השב להודעה)', 'example': '/kick', 'admin': True},
-        'ban': {'usage': '/ban', 'desc': 'חסום משתמש מהקבוצה (השב להודעה)', 'example': '/ban', 'admin': True},
-        'unban': {'usage': '/unban <טלפון>', 'desc': 'בטל חסימה של משתמש', 'example': '/unban 972501234567', 'admin': True},
-        'add': {'usage': '/add <טלפון>', 'desc': 'הוסף משתמש לקבוצה', 'example': '/add 972501234567', 'admin': True},
-        'invite': {'usage': '/invite', 'desc': 'קבל לינק הזמנה לקבוצה', 'example': '/invite', 'admin': True},
-        'delcmds': {'usage': '/delcmds <on|off|status>', 'desc': 'הפעל/כבה מחיקת פקודות', 'example': '/delcmds on', 'admin': True},
-        'welcome': {'usage': '/welcome', 'desc': 'הצג הודעת קבלת פנים נוכחית', 'example': '/welcome', 'admin': False},
-        'setwelcome': {'usage': '/setwelcome <הודעה>', 'desc': 'הגדר הודעת קבלת פנים. השתמש ב-{mention} לתיוג', 'example': '/setwelcome ברוך הבא {mention}!', 'admin': True},
-        'blacklist': {'usage': '/blacklist', 'desc': 'הצג רשימת מילים חסומות', 'example': '/blacklist', 'admin': False},
-        'addblacklist': {'usage': '/addblacklist <מילה>', 'desc': 'הוסף מילה לרשימה השחורה', 'example': '/addblacklist ספאם', 'admin': True},
-        'rmblacklist': {'usage': '/rmblacklist <מילה>', 'desc': 'הסר מילה מהרשימה השחורה', 'example': '/rmblacklist ספאם', 'admin': True},
-        'lock': {'usage': '/lock <סוג>', 'desc': 'נעל סוג תוכן (links/stickers/media)', 'example': '/lock links', 'admin': True},
-        'unlock': {'usage': '/unlock <סוג>', 'desc': 'בטל נעילה', 'example': '/unlock links', 'admin': True},
-        'locks': {'usage': '/locks', 'desc': 'הצג נעילות פעילות', 'example': '/locks', 'admin': False},
-        'lang': {'usage': '/lang [he|en]', 'desc': 'הצג או שנה שפה', 'example': '/lang he', 'admin': True},
-        'setlang': {'usage': '/setlang <he|en>', 'desc': 'שנה שפת הבוט', 'example': '/setlang en', 'admin': True},
-        'aimod': {'usage': '/aimod [on|off]', 'desc': 'הפעל/כבה מודרציית AI או הצג סטטוס', 'example': '/aimod on', 'admin': True},
-        'aimodstatus': {'usage': '/aimodstatus', 'desc': 'בדוק הגדרות AI', 'example': '/aimodstatus', 'admin': False},
-        'aimodset': {'usage': '/aimodset <קטגוריה> <סף>', 'desc': 'כוונן רגישות AI (0-100)', 'example': '/aimodset toxicity 70', 'admin': True},
-        'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'החלף מנוע AI', 'example': '/aimodbackend perspective', 'admin': True},
-        'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'הגדר API key למנוע', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
-        'aihelp': {'usage': '/aihelp', 'desc': 'מדריך מפורט ל-AI Moderation', 'example': '/aihelp', 'admin': False},
-        'aitest': {'usage': '/aitest <טקסט או ציטוט>', 'desc': 'בדוק הודעה עם AI והצג ציונים', 'example': '/aitest (השב להודעה)', 'admin': True},
-    },
-    'en': {
-        'start': {'usage': '/start', 'desc': 'Start the bot and get welcome message', 'example': '/start', 'admin': False},
-        'help': {'usage': '/help [command]', 'desc': 'Show command list or info about specific command', 'example': '/help warn', 'admin': False},
-        'info': {'usage': '/info', 'desc': 'Show bot information', 'example': '/info', 'admin': False},
-        'ping': {'usage': '/ping', 'desc': 'Check if bot is running', 'example': '/ping', 'admin': False},
-        'rules': {'usage': '/rules', 'desc': 'Show group rules', 'example': '/rules', 'admin': False},
-        'setrules': {'usage': '/setrules <text>', 'desc': 'Set group rules', 'example': '/setrules 1. Be nice\\n2. No spam', 'admin': True},
-        'clearrules': {'usage': '/clearrules', 'desc': 'Clear group rules', 'example': '/clearrules', 'admin': True},
-        'warn': {'usage': '/warn [reason]', 'desc': 'Warn a user (reply to message)', 'example': '/warn spam', 'admin': True},
-        'warns': {'usage': '/warns', 'desc': 'Check user warnings (reply to message)', 'example': '/warns', 'admin': False},
-        'resetwarns': {'usage': '/resetwarns', 'desc': 'Reset user warnings (reply to message)', 'example': '/resetwarns', 'admin': True},
-        'setwarn': {'usage': '/setwarn <number>', 'desc': 'Set warn limit', 'example': '/setwarn 3', 'admin': True},
-        'kick': {'usage': '/kick', 'desc': 'Kick user from group (reply to message)', 'example': '/kick', 'admin': True},
-        'ban': {'usage': '/ban', 'desc': 'Ban user from group (reply to message)', 'example': '/ban', 'admin': True},
-        'unban': {'usage': '/unban <phone>', 'desc': 'Unban a user', 'example': '/unban 972501234567', 'admin': True},
-        'add': {'usage': '/add <phone>', 'desc': 'Add user to group', 'example': '/add 972501234567', 'admin': True},
-        'invite': {'usage': '/invite', 'desc': 'Get group invite link', 'example': '/invite', 'admin': True},
-        'delcmds': {'usage': '/delcmds <on|off|status>', 'desc': 'Enable/disable command deletion', 'example': '/delcmds on', 'admin': True},
-        'welcome': {'usage': '/welcome', 'desc': 'Show current welcome message', 'example': '/welcome', 'admin': False},
-        'setwelcome': {'usage': '/setwelcome <message>', 'desc': 'Set welcome message. Use {mention} to tag', 'example': '/setwelcome Welcome {mention}!', 'admin': True},
-        'blacklist': {'usage': '/blacklist', 'desc': 'Show blacklisted words', 'example': '/blacklist', 'admin': False},
-        'addblacklist': {'usage': '/addblacklist <word>', 'desc': 'Add word to blacklist', 'example': '/addblacklist spam', 'admin': True},
-        'rmblacklist': {'usage': '/rmblacklist <word>', 'desc': 'Remove word from blacklist', 'example': '/rmblacklist spam', 'admin': True},
-        'lock': {'usage': '/lock <type>', 'desc': 'Lock content type (links/stickers/media)', 'example': '/lock links', 'admin': True},
-        'unlock': {'usage': '/unlock <type>', 'desc': 'Unlock content', 'example': '/unlock links', 'admin': True},
-        'locks': {'usage': '/locks', 'desc': 'Show active locks', 'example': '/locks', 'admin': False},
-        'lang': {'usage': '/lang [he|en]', 'desc': 'Show or change language', 'example': '/lang he', 'admin': True},
-        'setlang': {'usage': '/setlang <he|en>', 'desc': 'Change bot language', 'example': '/setlang en', 'admin': True},
-        'aimod': {'usage': '/aimod [on|off]', 'desc': 'Enable/disable AI moderation or show status', 'example': '/aimod on', 'admin': True},
-        'aimodstatus': {'usage': '/aimodstatus', 'desc': 'Check AI settings', 'example': '/aimodstatus', 'admin': False},
-        'aimodset': {'usage': '/aimodset <category> <threshold>', 'desc': 'Adjust AI sensitivity (0-100)', 'example': '/aimodset toxicity 70', 'admin': True},
-        'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'Change AI engine', 'example': '/aimodbackend perspective', 'admin': True},
-        'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'Set API key for engine', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
-        'aihelp': {'usage': '/aihelp', 'desc': 'Detailed AI Moderation guide', 'example': '/aihelp', 'admin': False},
-        'aitest': {'usage': '/aitest <text or reply>', 'desc': 'Test message with AI and show scores', 'example': '/aitest (reply to message)', 'admin': True},
-    }
-}
 
 
 # ============ HELPER FUNCTIONS ============
@@ -807,238 +93,23 @@ def mention_user(user_id: str, name: str = "User") -> str:
 
 
 # ============ WARN SYSTEM ============
-
-def get_warn_settings(chat_id: str) -> tuple:
-    """Get warn limit and action for chat"""
-    settings = db_session.query(WarnSettings).filter_by(chat_id=chat_id).first()
-    if not settings:
-        settings = WarnSettings(chat_id=chat_id)
-        db_session.add(settings)
-        db_session.commit()
-    return settings.warn_limit, settings.soft_warn
-
-
-def set_warn_limit(chat_id: str, limit: int):
-    """Set warn limit for chat"""
-    settings = db_session.query(WarnSettings).filter_by(chat_id=chat_id).first()
-    if not settings:
-        settings = WarnSettings(chat_id=chat_id, warn_limit=limit)
-        db_session.add(settings)
-    else:
-        settings.warn_limit = limit
-    db_session.commit()
-
-
-def warn_user(user_id: str, chat_id: str, reason: str, warner_id: str) -> tuple:
-    """Add a warn to user, returns (warn_count, limit_reached)"""
-    # Add warn
-    warn = Warn(user_id=user_id, chat_id=chat_id, reason=reason, warned_by=warner_id)
-    db_session.add(warn)
-    db_session.commit()
-    
-    # Count warns
-    count = db_session.query(Warn).filter_by(user_id=user_id, chat_id=chat_id).count()
-    limit, _ = get_warn_settings(chat_id)
-    
-    return count, count >= limit
-
-
-def get_warns(user_id: str, chat_id: str) -> List[Warn]:
-    """Get all warns for user in chat"""
-    return db_session.query(Warn).filter_by(user_id=user_id, chat_id=chat_id).all()
-
-
-def reset_warns(user_id: str, chat_id: str):
-    """Reset all warns for user in chat"""
-    db_session.query(Warn).filter_by(user_id=user_id, chat_id=chat_id).delete()
-    db_session.commit()
-
-
-# ============ RULES SYSTEM ============
-
-def set_rules(chat_id: str, rules_text: str):
-    """Set rules for chat"""
-    rules = db_session.query(Rules).filter_by(chat_id=chat_id).first()
-    if not rules:
-        rules = Rules(chat_id=chat_id, rules=rules_text)
-        db_session.add(rules)
-    else:
-        rules.rules = rules_text
-    db_session.commit()
-
-
-def get_rules(chat_id: str) -> Optional[str]:
-    """Get rules for chat"""
-    rules = db_session.query(Rules).filter_by(chat_id=chat_id).first()
-    return rules.rules if rules else None
-
-
-# ============ WELCOME SYSTEM ============
-
-def set_welcome(chat_id: str, message: str):
-    """Set welcome message for chat"""
-    welcome = db_session.query(Welcome).filter_by(chat_id=chat_id).first()
-    if not welcome:
-        welcome = Welcome(chat_id=chat_id, message=message)
-        db_session.add(welcome)
-    else:
-        welcome.message = message
-    db_session.commit()
-
-
-def get_welcome(chat_id: str) -> Optional[str]:
-    """Get welcome message for chat"""
-    welcome = db_session.query(Welcome).filter_by(chat_id=chat_id).first()
-    return welcome.message if welcome and welcome.enabled else None
-
+# All warn helpers are provided by bot_core.services.warn_service
 
 # ============ LANGUAGE SYSTEM ============
-
-def get_chat_lang(chat_id: str) -> str:
-    """Get language for chat (default: he)"""
-    lang = db_session.query(Language).filter_by(chat_id=chat_id).first()
-    return lang.lang_code if lang else 'he'
-
-
-def set_chat_lang(chat_id: str, lang_code: str):
-    """Set language for chat"""
-    lang = db_session.query(Language).filter_by(chat_id=chat_id).first()
-    if not lang:
-        lang = Language(chat_id=chat_id, lang_code=lang_code)
-        db_session.add(lang)
-    else:
-        lang.lang_code = lang_code
-    db_session.commit()
-
-
-def get_text(chat_id: str, key: str, **kwargs) -> str:
-    """Get translated text for chat"""
-    lang = get_chat_lang(chat_id)
-    text = TRANSLATIONS.get(lang, {}).get(key, TRANSLATIONS['en'].get(key, key))
-    return text.format(**kwargs) if kwargs else text
-
-
-# ============ BAN SYSTEM ============
-
-def add_ban(chat_id: str, user_id: str, banned_by: str = None):
-    """Add user to ban list"""
-    existing = db_session.query(BannedUser).filter_by(
-        chat_id=chat_id, user_id=user_id
-    ).first()
-    if not existing:
-        ban = BannedUser(chat_id=chat_id, user_id=user_id, banned_by=banned_by)
-        db_session.add(ban)
-        db_session.commit()
-
-
-def remove_ban(chat_id: str, user_id: str) -> bool:
-    """Remove user from ban list, returns True if found and removed"""
-    result = db_session.query(BannedUser).filter_by(
-        chat_id=chat_id, user_id=user_id
-    ).delete()
-    db_session.commit()
-    return result > 0
-
-
-def is_banned(chat_id: str, user_id: str) -> bool:
-    """Check if user is banned in chat"""
-    return db_session.query(BannedUser).filter_by(
-        chat_id=chat_id, user_id=user_id
-    ).first() is not None
-
-
-def get_banned_users(chat_id: str) -> list:
-    """Get all banned users in chat"""
-    return db_session.query(BannedUser).filter_by(chat_id=chat_id).all()
-
+# All language helpers are provided by bot_core.services.language_service
 
 # ============ CHAT CONFIG SYSTEM ============
+# All chat config helpers are provided by bot_core.services.chat_config_service
 
-def should_delete_commands(chat_id: str) -> bool:
-    """Check if commands should be deleted in this chat"""
-    config = db_session.query(ChatConfig).filter_by(chat_id=chat_id).first()
-    return config.delete_commands if config else False
-
-
-def set_delete_commands(chat_id: str, enabled: bool):
-    """Set whether to delete commands in this chat"""
-    config = db_session.query(ChatConfig).filter_by(chat_id=chat_id).first()
-    if config:
-        config.delete_commands = enabled
-    else:
-        config = ChatConfig(chat_id=chat_id, delete_commands=enabled)
-        db_session.add(config)
-    db_session.commit()
-
-
-# ============ BLACKLIST SYSTEM ============
-
-def add_blacklist(chat_id: str, word: str):
-    """Add word to blacklist"""
-    existing = db_session.query(Blacklist).filter_by(
-        chat_id=chat_id, word=word.lower()
-    ).first()
-    if not existing:
-        blacklist = Blacklist(chat_id=chat_id, word=word.lower())
-        db_session.add(blacklist)
-        db_session.commit()
-
-
-def remove_blacklist(chat_id: str, word: str):
-    """Remove word from blacklist"""
-    db_session.query(Blacklist).filter_by(
-        chat_id=chat_id, word=word.lower()
-    ).delete()
-    db_session.commit()
-
-
-def get_blacklist(chat_id: str) -> List[str]:
-    """Get all blacklisted words for chat"""
-    words = db_session.query(Blacklist).filter_by(chat_id=chat_id).all()
-    return [w.word for w in words]
-
-
-def check_blacklist(chat_id: str, text: str) -> Optional[str]:
-    """Check if text contains blacklisted word"""
-    words = get_blacklist(chat_id)
-    text_lower = text.lower()
-    for word in words:
-        if word in text_lower:
-            return word
-    return None
-
-
-# ============ LOCKS SYSTEM ============
-
-def set_lock(chat_id: str, lock_type: str, enabled: bool):
-    """Set lock for chat"""
-    locks = db_session.query(Locks).filter_by(chat_id=chat_id).first()
-    if not locks:
-        locks = Locks(chat_id=chat_id)
-        db_session.add(locks)
-    
-    if lock_type == 'links':
-        locks.lock_links = enabled
-    elif lock_type == 'stickers':
-        locks.lock_stickers = enabled
-    elif lock_type == 'media':
-        locks.lock_media = enabled
-    
-    db_session.commit()
-
-
-def get_locks(chat_id: str) -> Dict[str, bool]:
-    """Get all locks for chat"""
-    locks = db_session.query(Locks).filter_by(chat_id=chat_id).first()
-    if not locks:
-        return {'links': False, 'stickers': False, 'media': False}
-    return {
-        'links': locks.lock_links,
-        'stickers': locks.lock_stickers,
-        'media': locks.lock_media
-    }
-
-
+# Note: All other database functions moved to bot_core/services/
+# - warn_service: warn_user, get_warns, reset_user_warns, set_warn_limit, get_warn_limit, get_warn_settings
+# - rules_service: set_rules, get_rules
+# - welcome_service: set_welcome, get_welcome
+# - blacklist_service: add_blacklist, remove_blacklist, get_blacklist, check_blacklist
+# - locks_service: set_lock, get_locks, check_locks
+# - ban_service: add_ban, remove_ban, is_banned, get_banned_users
+# - language_service: get_chat_lang, set_chat_lang
+# - chat_config_service: should_delete_commands, set_delete_commands
 def check_locks(chat_id: str, message: dict) -> Optional[str]:
     """Check if message violates locks"""
     locks = get_locks(chat_id)
@@ -1058,80 +129,30 @@ def check_locks(chat_id: str, message: dict) -> Optional[str]:
 
 # ============ AI MODERATION SYSTEM ============
 
-def get_ai_settings(chat_id: str) -> AIModerationSettings:
-    """Get AI moderation settings for chat"""
-    settings = db_session.query(AIModerationSettings).filter_by(chat_id=chat_id).first()
-    if not settings:
-        settings = AIModerationSettings(chat_id=chat_id, backend='rules')  # Default to rules backend
-        db_session.add(settings)
-        db_session.commit()
-    # Ensure backend is never None
-    if not settings.backend:
-        settings.backend = 'rules'
-        db_session.commit()
-    return settings
-
-
-def set_ai_moderation(chat_id: str, enabled: bool):
-    """Enable/disable AI moderation"""
-    settings = get_ai_settings(chat_id)
-    settings.enabled = enabled
-    db_session.commit()
-
-
-def set_ai_threshold(chat_id: str, category: str, threshold: int):
-    """Set threshold for AI moderation category"""
-    settings = get_ai_settings(chat_id)
-    if category == 'toxicity':
-        settings.toxicity_threshold = threshold
-    elif category == 'spam':
-        settings.spam_threshold = threshold
-    elif category == 'sexual':
-        settings.sexual_threshold = threshold
-    elif category == 'threat':
-        settings.threat_threshold = threshold
-    db_session.commit()
-
-
-def set_ai_backend(chat_id: str, backend: str, api_key: Optional[str] = None):
-    """Set AI backend and optional API key for group"""
-    settings = get_ai_settings(chat_id)
-    settings.backend = backend
-    if api_key:
-        settings.api_key = api_key
-    db_session.commit()
-
-
-def check_ai_moderation(chat_id: str, text: str, bot_moderator) -> Optional[ModerationResult]:
-    """Check message with AI moderation using group's own settings"""
+def check_ai_moderation(chat_id: str, text: str, bot_moderator) -> Optional[Dict]:
+    """Check message with AI moderation using chat's own settings"""
+    from bot_core.services.ai_moderation_service import get_ai_settings, check_content_toxicity
+    
     settings = get_ai_settings(chat_id)
     
-    if not settings.enabled:
+    if not settings['enabled']:
         return None
     
-    # Create moderator with group's backend and API key
-    backend = settings.backend or 'rules'
-    api_key = settings.api_key
+    # Get settings
+    backend = settings['backend']
+    api_key = settings['api_key']
+    threshold = settings['threshold'] / 100.0  # Convert 0-100 to 0.0-1.0
+    action = settings['action']
     
-    # Use group's API key, fallback to environment variable
-    if not api_key:
-        import os
-        api_key = os.getenv(f'{backend.upper()}_API_KEY')
+    # Check content toxicity
+    result = check_content_toxicity(text, backend=backend, api_key=api_key, threshold=threshold)
     
-    # Create fresh moderator for this group (don't use cached one)
-    from bot_core.content_filter import ContentModerator
-    moderator = ContentModerator(backend=backend, api_key=api_key)
+    # Return result with action if toxic
+    if result.get('is_toxic'):
+        result['action'] = action  # Add configured action
+        return result
     
-    # Build thresholds from settings (convert 0-100 to 0.0-1.0)
-    thresholds = {
-        'toxicity': settings.toxicity_threshold / 100.0,
-        'spam': settings.spam_threshold / 100.0,
-        'sexual': settings.sexual_threshold / 100.0,
-        'threat': settings.threat_threshold / 100.0,
-    }
-    
-    result = moderator.check_message(text, thresholds)
-    return result if result.is_flagged else None
+    return None
 
 
 # ============ BOT CLASS ============
@@ -1160,28 +181,67 @@ class WhatsAppBot:
                 # AI Moderation Check
                 ai_result = check_ai_moderation(chat_id, text, self.moderator)
                 if ai_result:
-                    settings = get_ai_settings(chat_id)
                     lang = get_chat_lang(chat_id)
+                    action = ai_result.get('action', 'warn')
+                    score = ai_result.get('score', 0.0)
+                    backend = ai_result.get('backend', 'unknown')
+                    msg_id = message.get('id')
+                    
+                    # Parse action (can be combined like warn_delete)
+                    do_warn = 'warn' in action
+                    do_delete = 'delete' in action
+                    do_kick = 'kick' in action
+                    do_ban = 'ban' in action
+                    
+                    # Build action descriptions
+                    action_parts = []
+                    if do_warn:
+                        action_parts.append('⚠️ אזהרה' if lang == 'he' else '⚠️ Warn')
+                    if do_delete:
+                        action_parts.append('🗑️ מחיקה' if lang == 'he' else '🗑️ Delete')
+                    if do_kick:
+                        action_parts.append('👋 הסרה' if lang == 'he' else '👋 Kick')
+                    if do_ban:
+                        action_parts.append('🚫 חסימה' if lang == 'he' else '🚫 Ban')
+                    
+                    actions_text = ' + '.join(action_parts)
+                    
                     if lang == 'he':
-                        msg = f"🤖 *מודרציית AI*\n\n"
-                        msg += f"❌ הודעה סומנה: {ai_result.reason}\n"
-                        msg += f"ביטחון: {ai_result.confidence:.1%}\n\n"
-                        if settings.auto_delete:
-                            msg += "_ההודעה תימחק_"
+                        msg = f"🤖 *מודרציית AI ({backend})*\n\n"
+                        msg += f"❌ תוכן רעיל זוהה\n"
+                        msg += f"ציון: {score:.1%}\n"
+                        msg += f"פעולות: {actions_text}"
                     else:
-                        msg = f"🤖 *AI Moderation*\n\n"
-                        msg += f"❌ Message flagged: {ai_result.reason}\n"
-                        msg += f"Confidence: {ai_result.confidence:.1%}\n\n"
-                        if settings.auto_delete:
-                            msg += "_Message will be deleted_"
+                        msg = f"🤖 *AI Moderation ({backend})*\n\n"
+                        msg += f"❌ Toxic content detected\n"
+                        msg += f"Score: {score:.1%}\n"
+                        msg += f"Actions: {actions_text}"
                     
                     self.client.send_message(chat_id, msg)
                     
-                    if settings.auto_warn:
-                        # TODO: Auto-warn user
-                        pass
+                    # Execute actions in order
+                    if do_delete and msg_id:
+                        self.client.delete_message(chat_id, msg_id)
                     
-                    # TODO: Delete message via bridge
+                    if do_warn:
+                        user_display = from_id.split('@')[0]
+                        warn_count, warn_limit = warn_user(chat_id, from_id, user_display, "תוכן רעיל" if lang == 'he' else "Toxic content")
+                        
+                        if warn_count >= warn_limit:
+                            _, soft = get_warn_settings(chat_id)
+                            if soft:
+                                self.client.remove_participant(chat_id, from_id)
+                            else:
+                                add_ban(chat_id, from_id, user_display, reason="Too many warns")
+                                self.client.remove_participant(chat_id, from_id)
+                    
+                    if do_ban:
+                        user_display = from_id.split('@')[0]
+                        add_ban(chat_id, from_id, user_display, reason="AI detected toxic content")
+                        self.client.remove_participant(chat_id, from_id)
+                    elif do_kick:
+                        self.client.remove_participant(chat_id, from_id)
+                    
                     return
                 
                 blacklisted = check_blacklist(chat_id, text)
@@ -1391,6 +451,18 @@ class WhatsAppBot:
                 self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_aimodbackend(chat_id, args)
+        
+        elif command == 'aimodaction':
+            if not is_admin(chat_id, from_id, self.client):
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
+                return
+            self.cmd_aimodaction(chat_id, args)
+        
+        elif command == 'aimodthreshold':
+            if not is_admin(chat_id, from_id, self.client):
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
+                return
+            self.cmd_aimodthreshold(chat_id, args)
         
         elif command == 'aihelp':
             self.cmd_aihelp(chat_id)
@@ -1616,17 +688,18 @@ class WhatsAppBot:
         # Get target user ID
         target_user = quoted_participant
         
-        # Add warning and get count
-        reason = reason or get_text(chat_id, 'no_reason')
-        count, limit_reached = warn_user(target_user, chat_id, reason, warner_id)
-        
-        # Get warn settings
-        limit, soft = get_warn_settings(chat_id)
-        
-        # Format user display (just the number part)
+        # Get user name for display
         user_display = target_user.split('@')[0]
         
+        # Add warning and get count
+        reason = reason or get_text(chat_id, 'no_reason')
+        count, limit = warn_user(chat_id, target_user, user_display, reason)
+        
+        # Get warn settings
+        _, soft = get_warn_settings(chat_id)
+        
         # Check if user reached limit
+        limit_reached = count >= limit
         if limit_reached:
             msg = get_text(chat_id, 'warn_limit_reached', user=user_display)
             self.client.send_message(chat_id, msg)
@@ -1647,7 +720,7 @@ class WhatsAppBot:
         quoted_participant = message.get('quotedParticipant')
         target_user = quoted_participant if quoted_participant else user_id
         
-        warns = get_warns(target_user, chat_id)
+        warns = get_warns(chat_id, target_user)
         limit, soft = get_warn_settings(chat_id)
         
         user_display = target_user.split('@')[0]
@@ -1672,7 +745,7 @@ class WhatsAppBot:
             return
         
         # Reset warns
-        reset_warns(quoted_participant, chat_id)
+        reset_user_warns(chat_id, quoted_participant)
         user_display = quoted_participant.split('@')[0]
         self.client.send_message(chat_id, get_text(chat_id, 'warns_reset', user=user_display))
     
@@ -1884,6 +957,8 @@ class WhatsAppBot:
     
     def cmd_aimod(self, chat_id: str, args: str):
         """Enable/disable AI moderation"""
+        from bot_core.services.ai_moderation_service import set_ai_enabled
+        
         if not args:
             # Show current status (like /aimodstatus)
             self.cmd_aimodstatus(chat_id)
@@ -1894,7 +969,7 @@ class WhatsAppBot:
             return
         
         enabled = args.lower() == 'on'
-        set_ai_moderation(chat_id, enabled)
+        set_ai_enabled(chat_id, enabled)
         
         if enabled:
             msg = get_text(chat_id, 'aimod_on')
@@ -1965,6 +1040,13 @@ Example: /aimodset spam 70"""
             msg = "❌ *שימוש:* /aitest\n\nהשב להודעה או כתוב טקסט:\n/aitest בדוק את הטקסט הזה"
             self.client.send_message(chat_id, msg)
             return
+
+        if not isinstance(test_text, str):
+            test_text = str(test_text)
+        if not test_text.strip():
+            msg = "❌ *שימוש:* /aitest\n\nהשב להודעה או כתוב טקסט:\n/aitest בדוק את הטקסט הזה"
+            self.client.send_message(chat_id, msg)
+            return
         
         # Get AI settings
         settings = get_ai_settings(chat_id)
@@ -1975,6 +1057,9 @@ Example: /aimodset spam 70"""
             backend=settings.backend,
             api_key=settings.api_key
         )
+
+        requested_backend = settings.backend
+        used_backend = moderator.backend
         
         # Convert percentage thresholds to 0-1 scale
         thresholds = {
@@ -1996,15 +1081,29 @@ Example: /aimodset spam 70"""
         }
         
         msg = f"🔍 *AI Moderation Test*\n\n"
-        msg += f"Backend: {backend_emoji.get(settings.backend, '❓')} {settings.backend}\n\n"
+        msg += f"Backend: {backend_emoji.get(requested_backend, '❓')} {requested_backend}\n"
+        if used_backend != requested_backend:
+            import os
+            missing_key = requested_backend in ['perspective', 'openai', 'azure'] and not (
+                settings.api_key or os.getenv(f'{requested_backend.upper()}_API_KEY')
+            )
+            if missing_key:
+                msg += f"Backend used: {backend_emoji.get(used_backend, '❓')} {used_backend} (אין API key)\n"
+            else:
+                msg += f"Backend used: {backend_emoji.get(used_backend, '❓')} {used_backend} (fallback)\n"
+        msg += "\n"
         msg += f"📝 *Text:* {test_text[:100]}{'...' if len(test_text) > 100 else ''}\n\n"
         msg += f"*Scores:*\n"
         
         if result.scores:
             for category, score in sorted(result.scores.items()):
                 percentage = score * 100
-                threshold = thresholds.get(category, 0.7) * 100
-                emoji = '🔴' if score >= thresholds.get(category, 0.7) else '🟢'
+                if category == 'promotion':
+                    threshold_value = thresholds.get('spam', 0.7)
+                else:
+                    threshold_value = thresholds.get(category, 0.7)
+                threshold = threshold_value * 100
+                emoji = '🔴' if score >= threshold_value else '🟢'
                 msg += f"{emoji} {category.title()}: {percentage:.1f}% (סף: {threshold:.0f}%)\n"
         else:
             msg += "_No scores available_\n"
@@ -2023,37 +1122,65 @@ Example: /aimodset spam 70"""
     
     def cmd_aimodstatus(self, chat_id: str):
         """Show AI moderation status"""
+        from bot_core.services.ai_moderation_service import get_ai_settings
         settings = get_ai_settings(chat_id)
         
-        if not settings.enabled:
+        if not settings['enabled']:
             msg = "❌ AI Moderation is *disabled*\n\nUse /aimod on to enable"
         else:
             backend_emoji = {
                 'perspective': '🌍',
                 'openai': '🤖',
                 'azure': '☁️',
-                'detoxify': '💻',
-                'rules': '📋'
+                'detoxify': '💻'
             }
             backend_name = {
                 'perspective': 'Google Perspective (Hebrew+English)',
                 'openai': 'OpenAI (English)',
                 'azure': 'Azure (Hebrew+English)',
-                'detoxify': 'Detoxify (English)',
-                'rules': 'Rule-based (Hebrew+English)'
+                'detoxify': 'Detoxify (Multilingual - Hebrew+English)'
+            }
+            action_emoji = {
+                'warn': '⚠️',
+                'delete': '🗑️',
+                'kick': '👋',
+                'ban': '🚫',
+                'warn_delete': '⚠️🗑️',
+                'delete_kick': '🗑️👋',
+                'delete_ban': '🗑️🚫'
             }
             
+            action_desc = {
+                'warn': 'אזהרה',
+                'delete': 'מחיקה',
+                'kick': 'הסרה',
+                'ban': 'חסימה',
+                'warn_delete': 'אזהרה + מחיקה',
+                'delete_kick': 'מחיקה + הסרה',
+                'delete_ban': 'מחיקה + חסימה'
+            }
+            
+            backend = settings['backend']
+            action = settings['action']
+            action_display = f"{action_emoji.get(action, '❓')} {action_desc.get(action, action)}"
+            
             msg = "🤖 *AI Moderation Status*\n\n"
-            msg += f"Status: {'✅ Enabled' if settings.enabled else '❌ Disabled'}\n"
-            msg += f"Backend: {backend_emoji.get(settings.backend, '❓')} {backend_name.get(settings.backend, settings.backend)}\n"
-            msg += f"API Key: {'✅ Set' if settings.api_key else '❌ Not set (using global)'}\n\n"
-            msg += "*Thresholds:*\n"
-            msg += f"• Toxicity: {settings.toxicity_threshold}%\n"
-            msg += f"• Spam: {settings.spam_threshold}%\n"
-            msg += f"• Sexual: {settings.sexual_threshold}%\n"
-            msg += f"• Threat: {settings.threat_threshold}%\n\n"
-            msg += f"Auto-delete: {'✅' if settings.auto_delete else '❌'}\n"
-            msg += f"Auto-warn: {'✅' if settings.auto_warn else '❌'}"
+            msg += f"Status: ✅ Enabled\n"
+            msg += f"Backend: {backend_emoji.get(backend, '❓')} {backend_name.get(backend, backend)}\n"
+            msg += f"API Key: {'✅ Set' if settings['api_key'] else '❌ Not set'}\n"
+            msg += f"Threshold: {settings['threshold']}%\n"
+            msg += f"Action: {action_display}\n\n"
+            
+            msg += "*Available actions:*\n"
+            msg += "• warn - אזהרה למשתמש\n"
+            msg += "• delete - מחיקת הודעה\n"
+            msg += "• kick - הסרה מהקבוצה\n"
+            msg += "• ban - חסימה והסרה\n\n"
+            
+            msg += "*Commands:*\n"
+            msg += "/aimodbackend <backend> - החלף מנוע\n"
+            msg += "/aimodthreshold <0-100> - שנה רגישות\n"
+            msg += "/aimodaction <action> - שנה פעולה"
         
         self.client.send_message(chat_id, msg)
     
@@ -2206,6 +1333,118 @@ Example: /aimodset spam 70"""
         self.client.send_message(
             chat_id,
             f"✅ Backend set to *{backend}*"
+        )
+    
+    def cmd_aimodaction(self, chat_id: str, action: str):
+        """Set AI moderation action(s)"""
+        from bot_core.services.ai_moderation_service import set_ai_action
+        
+        if not action:
+            msg = """❌ *שימוש:* /aimodaction <action>
+
+⚡ *פעולות זמינות:*
+
+⚠️ *warn* - אזהרה בלבד
+   • הוספת אזהרה למשתמש
+   • אם מגיע למקסימום אזהרות - kick/ban
+
+🗑️ *delete* - מחיקה בלבד
+   • מחיקה אוטומטית של ההודעה הרעילה
+
+👋 *kick* - הסרה בלבד
+   • הסרת המשתמש מהקבוצה
+   • יכול לחזור דרך קישור
+
+🚫 *ban* - חסימה והסרה
+   • חסימת המשתמש והסרתו
+   • לא יכול לחזור
+
+💡 *פעולות משולבות:*
+
+⚠️🗑️ *warn_delete* - אזהרה + מחיקה
+   • גם מזהיר וגם מוחק את ההודעה
+
+🗑️👋 *delete_kick* - מחיקה + הסרה
+   • מוחק הודעה ומסיר מהקבוצה
+
+🗑️🚫 *delete_ban* - מחיקה + חסימה
+   • מוחק הודעה וחוסם לצמיתות
+
+*דוגמאות:*
+/aimodaction delete
+/aimodaction warn_delete
+/aimodaction delete_ban"""
+            self.client.send_message(chat_id, msg)
+            return
+        
+        action = action.lower()
+        valid_actions = ['warn', 'delete', 'kick', 'ban', 'warn_delete', 'delete_kick', 'delete_ban']
+        
+        if action not in valid_actions:
+            self.client.send_message(
+                chat_id,
+                f"❌ פעולה לא תקינה: {action}\nבחר מ: {', '.join(valid_actions)}"
+            )
+            return
+        
+        set_ai_action(chat_id, action)
+        
+        action_desc = {
+            'warn': '⚠️ אזהרה',
+            'delete': '🗑️ מחיקה',
+            'kick': '👋 הסרה',
+            'ban': '🚫 חסימה',
+            'warn_delete': '⚠️ אזהרה + 🗑️ מחיקה',
+            'delete_kick': '🗑️ מחיקה + 👋 הסרה',
+            'delete_ban': '🗑️ מחיקה + 🚫 חסימה'
+        }
+        
+        self.client.send_message(
+            chat_id,
+            f"✅ פעולת AI moderation שונתה ל:\n{action_desc[action]}"
+        )
+    
+    def cmd_aimodthreshold(self, chat_id: str, threshold_str: str):
+        """Set AI moderation threshold"""
+        from bot_core.services.ai_moderation_service import set_ai_threshold
+        
+        if not threshold_str:
+            msg = """❌ *שימוש:* /aimodthreshold <0-100>
+
+🎯 *רגישות זיהוי תוכן רעיל*
+
+הסף קובע כמה רגיש הבוט:
+• 0-40: רגיש מעט (רק תוכן ממש רעיל)
+• 40-70: רגישות בינונית ✅ (מומלץ)
+• 70-100: רגיש מאוד (עלול לזהות גם תוכן תקין)
+
+*דוגמאות:*
+/aimodthreshold 60 - רגישות בינונית
+/aimodthreshold 80 - רגיש מאוד
+
+💡 *טיפ:* התחל עם 60 והתאם לפי הצורך"""
+            self.client.send_message(chat_id, msg)
+            return
+        
+        try:
+            threshold = int(threshold_str)
+            if threshold < 0 or threshold > 100:
+                raise ValueError
+        except:
+            self.client.send_message(
+                chat_id,
+                "❌ הסף חייב להיות מספר בין 0 ל-100"
+            )
+            return
+        
+        set_ai_threshold(chat_id, threshold)
+        
+        sensitivity = "נמוכה" if threshold < 40 else "בינונית" if threshold < 70 else "גבוהה"
+        
+        self.client.send_message(
+            chat_id,
+            f"✅ סף הזיהוי שונה ל-{threshold}%\n"
+            f"רגישות: {sensitivity}"
         )
     
     def cmd_setlang(self, chat_id: str, args: str):

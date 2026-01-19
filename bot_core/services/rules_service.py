@@ -25,7 +25,7 @@ def get_rules(chat_id: str) -> Optional[str]:
     session = get_session()
     try:
         rules = session.query(Rules).filter_by(chat_id=chat_id).first()
-        return rules.rules_text if rules else None
+        return rules.rules if rules else None
     finally:
         session.close()
 
@@ -42,9 +42,9 @@ def set_rules(chat_id: str, rules_text: str) -> None:
     try:
         rules = session.query(Rules).filter_by(chat_id=chat_id).first()
         if rules:
-            rules.rules_text = rules_text
+            rules.rules = rules_text
         else:
-            rules = Rules(chat_id=chat_id, rules_text=rules_text)
+            rules = Rules(chat_id=chat_id, rules=rules_text)
             session.add(rules)
         session.commit()
         

@@ -9,11 +9,25 @@ from datetime import datetime
 
 from ..database import get_session
 from ..db_models import AIModeration as AIModerationSettings
+from .ai_backends import (
+    PerspectiveBackend,
+    AzureBackend,
+    OpenAIBackend,
+    DetoxifyBackend
+)
 
 logger = logging.getLogger(__name__)
 
-# Supported backends
-SUPPORTED_BACKENDS = ['rules', 'perspective', 'azure', 'openai', 'detoxify']
+# Supported backends (removed 'rules' - use blacklist for word filtering)
+SUPPORTED_BACKENDS = ['detoxify', 'perspective', 'openai', 'azure']
+
+# Backend registry
+_BACKEND_REGISTRY = {
+    'detoxify': DetoxifyBackend,
+    'perspective': PerspectiveBackend,
+    'azure': AzureBackend,
+    'openai': OpenAIBackend
+}
 
 
 def get_ai_settings(chat_id: str) -> Dict[str, Any]:
@@ -32,18 +46,27 @@ def get_ai_settings(chat_id: str) -> Dict[str, Any]:
         if not settings:
             return {
                 'enabled': False,
-                'backend': 'rules',
+                'backend': 'detoxify',
                 'api_key': None,
-                'threshold': 0.7,
+                'threshold': 70,
                 'action': 'delete'
             }
         
         return {
             'enabled': settings.enabled,
-            'backend': settings.backend or 'rules',
+            'backend': settings.backend or 'detoxify',
             'api_key': settings.api_key,
             'threshold': settings.threshold,
             'action': settings.action
+        }
+    except Exception as e:
+        # If database doesn't exist yet or any error, return defaults
+        return {
+            'enabled': False,
+            'backend': 'detoxify',
+            'api_key': None,
+            'threshold': 70,
+            'action': 'delete'
         }
     finally:
         session.close()
@@ -64,9 +87,9 @@ def set_ai_enabled(chat_id: str, enabled: bool) -> None:
             settings = AIModerationSettings(
                 chat_id=chat_id,
                 enabled=enabled,
-                backend='rules',
+                backend='detoxify',
                 threshold=0.7,
-                action='delete'
+                action='warn'
             )
             session.add(settings)
         else:
@@ -204,58 +227,56 @@ def set_ai_action(chat_id: str, action: str) -> None:
         session.close()
 
 
-def check_content_toxicity(text: str, backend: str = 'rules', 
+def check_content_toxicity(text: str, backend: str = 'detoxify', 
                           api_key: Optional[str] = None, 
                           threshold: float = 0.7) -> Dict[str, Any]:
     """
-    Check content for toxicity using specified backend
+    Check content for toxicity using AI backends
     
     Args:
         text: Text to check
-        backend: AI backend to use
-        api_key: API key if required
-        threshold: Detection threshold
+        backend: AI backend (detoxify, perspective, openai, azure)
+        api_key: API key if required by backend
+        threshold: Detection threshold (0.0-1.0)
     
     Returns:
-        Dictionary with is_toxic flag and score
+        Dictionary with is_toxic flag, score, and backend info
     """
-    # Rule-based detection (no API needed)
-    if backend == 'rules':
-        toxic_patterns = [
-            # Hebrew toxic patterns
-            r'\b(דפוק|מניאק|זין|כוס|חרא|לעזאזל)\b',
-            # English toxic patterns
-            r'\b(fuck|shit|damn|bitch|asshole|idiot|stupid)\b',
-            # Spam patterns
-            r'(http|https|www\.)\S+',
-            r'(\d{10,})',  # Long numbers (phone/spam)
-        ]
-        
-        import re
-        text_lower = text.lower()
-        
-        for pattern in toxic_patterns:
-            if re.search(pattern, text_lower, re.IGNORECASE):
-                logger.info(f"🚫 Toxic content detected (rules): {pattern}")
-                return {
-                    'is_toxic': True,
-                    'score': 0.9,
-                    'backend': 'rules'
-                }
-        
-        return {
-            'is_toxic': False,
-            'score': 0.0,
-            'backend': 'rules'
-        }
+    if not text or not text.strip():
+        return {'is_toxic': False, 'score': 0.0, 'backend': backend}
     
-    # Other backends would be implemented here
-    # perspective, azure, openai, detoxify
-    logger.warning(f"⚠️ Backend '{backend}' not fully implemented yet")
+    # Get backend class from registry
+    backend_class = _BACKEND_REGISTRY.get(backend)
     
-    return {
-        'is_toxic': False,
-        'score': 0.0,
-        'backend': backend,
-        'error': 'Backend not implemented'
-    }
+    if not backend_class:
+        logger.warning(f"⚠️ Unknown backend '{backend}', falling back to detoxify")
+        backend_class = DetoxifyBackend
+    
+    # Initialize backend
+    try:
+        backend_instance = backend_class(api_key=api_key)
+        
+        # Check if API key is required but not provided
+        if backend_instance.requires_api_key and not api_key:
+            logger.warning(f"⚠️ Backend '{backend}' requires API key, falling back to detoxify")
+            backend_instance = DetoxifyBackend()
+        
+        # Perform check
+        result = backend_instance.check_toxicity(text, threshold)
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Error with backend '{backend}': {e}")
+        # Fallback to detoxify (no API key needed)
+        try:
+            fallback = DetoxifyBackend()
+            return fallback.check_toxicity(text, threshold)
+        except Exception as fallback_error:
+            logger.error(f"❌ Detoxify fallback also failed: {fallback_error}")
+            # Return non-toxic if all fails
+            return {
+                'is_toxic': False,
+                'score': 0.0,
+                'backend': 'error',
+                'error': f'All backends failed: {str(e)}'
+            }

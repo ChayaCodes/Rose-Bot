@@ -79,8 +79,9 @@ client.on('message', async (msg) => {
             const senderId = msg.author || msg.from;  // In groups, author is the sender
             
             console.log('Sending to Python - chatId:', chatId, 'senderId:', senderId);
+            console.log('Python callback URL:', pythonCallbackUrl);
             
-            await fetch(pythonCallbackUrl, {
+            const response = await fetch(pythonCallbackUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -100,6 +101,7 @@ client.on('message', async (msg) => {
                     }
                 })
             });
+            console.log('Python response status:', response.status);
         } catch (error) {
             console.error('Error forwarding message to Python:', error);
         }
