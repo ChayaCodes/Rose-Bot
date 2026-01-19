@@ -114,7 +114,7 @@ TRANSLATIONS = {
 🔞 תוכן מיני
 ⚠️ איומים
 
-📋 *Backend נוכחי:* Rule-based (ללא צורך ב-API key)
+💻 *Backend נוכחי:* Detoxify (ללא צורך ב-API key)
 
 *פקודות שימושיות:*
 • /aimodstatus - בדיקת הגדרות
@@ -122,8 +122,8 @@ TRANSLATIONS = {
 • /aimodbackend - החלפת מנוע AI
 • /aimodkey - הגדרת API key
 
-💡 *טיפ:* Backend ה-rules עובד מצוין לעברית ללא עלות!
-לשיפור נוסף, תוכל להוסיף API key של Perspective או Azure.
+💡 *טיפ:* Detoxify עובד מצוין לאנגלית ללא עלות.
+לשיפור עברית, הוסף API key של Perspective או Azure.
 
 📚 למידע נוסף: AI_MODERATION_SETUP.md''',
         'aimod_disabled': '❌ AI Moderation כבוי',
@@ -135,7 +135,7 @@ TRANSLATIONS = {
         'lang_invalid': '❌ קוד שפה לא חוקי. זמין: he, en',
         
         # Ping
-        'pong': '🏓 פונג!',
+        'pong': '🏓 Pong!',
         
         # Usage messages
         'usage_setrules': '❌ שימוש: /setrules <טקסט חוקים>',
@@ -145,16 +145,29 @@ TRANSLATIONS = {
         'usage_rmblacklist': '❌ שימוש: /rmblacklist <מילה>',
         
         # AI Help
-        'aihelp_full': '''🤖 *מדריך AI Moderation*
+      'aihelp_full': '''🤖 *מדריך AI Moderation*
 
-📝 *פקודות זמינות:*
-• /aimod on|​off - הפעל/כבה (מנהל)
-• /aimodstatus - בדוק הגדרות
-• /aimodbackend <backend> - החלף מנוע (מנהל)
-• /aimodkey <backend> <key> - הגדר API key (מנהל)
-• /aimodset <קטגוריה> <מספר> - כוונן רגישות (מנהל)
+   📝 *פקודות זמינות:*
+   • /aimod on|​off - הפעל/כבה (מנהל)
+   • /aimodstatus - בדוק הגדרות
+   • /aimodbackend <backend> - החלף מנוע (מנהל)
+   • /aimodkey <backend> <key> - הגדר API key (מנהל)
+   • /aimodset <קטגוריה> <מספר> - כוונן רגישות לפי קטגוריה (מנהל)
+   • /aimodthreshold <0-100> - רגישות כללית (מנהל)
 
-🔧 *מנועות זמינים:*
+   🎯 *איך מכוונים רגישות?*
+   • /aimodthreshold קובע רגישות כללית לכל הקטגוריות
+   • 0-40 = נמוכה (מסנן רק תוכן קיצוני)
+   • 40-70 = בינונית (מומלץ)
+   • 70-100 = גבוהה (עשוי לזהות גם תוכן תקין)
+
+   דוגמאות:
+   /aimodthreshold 60
+   /aimodset sexual 80
+
+   💡 טיפ: התחילו עם 60 והתאימו לפי הצורך.
+
+   🔧 *מנועות זמינים:*
 
 📋 *rules* (ברירת מחדל)
    • שפות: עברית + אנגלית
@@ -585,16 +598,29 @@ For better results, add a Perspective or Azure API key.
         'usage_rmblacklist': '❌ Usage: /rmblacklist <word>',
         
         # AI Help
-        'aihelp_full': '''🤖 *AI Moderation Guide*
+      'aihelp_full': '''🤖 *AI Moderation Guide*
 
-📝 *Available Commands:*
-• /aimod on|​off - Enable/disable (admin)
-• /aimodstatus - Check settings
-• /aimodbackend <backend> - Change engine (admin)
-• /aimodkey <backend> <key> - Set API key (admin)
-• /aimodset <category> <num> - Adjust sensitivity (admin)
+   📝 *Available Commands:*
+   • /aimod on|​off - Enable/disable (admin)
+   • /aimodstatus - Check settings
+   • /aimodbackend <backend> - Change engine (admin)
+   • /aimodkey <backend> <key> - Set API key (admin)
+   • /aimodset <category> <num> - Adjust sensitivity per category (admin)
+   • /aimodthreshold <0-100> - Overall sensitivity (admin)
 
-🔧 *Available Backends:*
+   🎯 *How to tune sensitivity:*
+   • /aimodthreshold sets a general sensitivity for all categories
+   • 0-40 = low (only very toxic content)
+   • 40-70 = medium (recommended)
+   • 70-100 = high (may flag normal content)
+
+   Examples:
+   /aimodthreshold 60
+   /aimodset sexual 80
+
+   💡 Tip: start with 60 and adjust as needed.
+
+   🔧 *Available Backends:*
 
 📋 *rules* (default)
    • Languages: Hebrew + English

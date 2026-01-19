@@ -51,12 +51,19 @@ def get_ai_settings(chat_id: str) -> Dict[str, Any]:
                 'threshold': 70,
                 'action': 'delete'
             }
-        
+        threshold = settings.threshold
+        if threshold is None:
+            threshold = 70
+        elif isinstance(threshold, float) and threshold <= 1:
+            threshold = int(round(threshold * 100))
+        elif isinstance(threshold, int) and threshold <= 1:
+            threshold = int(round(threshold * 100))
+
         return {
             'enabled': settings.enabled,
             'backend': settings.backend or 'detoxify',
             'api_key': settings.api_key,
-            'threshold': settings.threshold,
+            'threshold': threshold,
             'action': settings.action
         }
     except Exception as e:
@@ -88,7 +95,7 @@ def set_ai_enabled(chat_id: str, enabled: bool) -> None:
                 chat_id=chat_id,
                 enabled=enabled,
                 backend='detoxify',
-                threshold=0.7,
+                threshold=70,
                 action='warn'
             )
             session.add(settings)
@@ -125,7 +132,7 @@ def set_ai_backend(chat_id: str, backend: str) -> bool:
                 chat_id=chat_id,
                 enabled=False,
                 backend=backend,
-                threshold=0.7,
+                threshold=70,
                 action='delete'
             )
             session.add(settings)
@@ -154,9 +161,9 @@ def set_ai_api_key(chat_id: str, api_key: str) -> None:
             settings = AIModerationSettings(
                 chat_id=chat_id,
                 enabled=False,
-                backend='rules',
+                backend='detoxify',
                 api_key=api_key,
-                threshold=0.7,
+                threshold=70,
                 action='delete'
             )
             session.add(settings)
@@ -175,16 +182,18 @@ def set_ai_threshold(chat_id: str, threshold: float) -> None:
     
     Args:
         chat_id: Chat identifier
-        threshold: Detection threshold (0.0-1.0)
+        threshold: Detection threshold (0-100)
     """
     session = get_session()
     try:
+        if isinstance(threshold, float) and threshold <= 1:
+            threshold = int(round(threshold * 100))
         settings = session.query(AIModerationSettings).filter_by(chat_id=chat_id).first()
         if not settings:
             settings = AIModerationSettings(
                 chat_id=chat_id,
                 enabled=False,
-                backend='rules',
+                backend='detoxify',
                 threshold=threshold,
                 action='delete'
             )
@@ -213,8 +222,8 @@ def set_ai_action(chat_id: str, action: str) -> None:
             settings = AIModerationSettings(
                 chat_id=chat_id,
                 enabled=False,
-                backend='rules',
-                threshold=0.7,
+                backend='detoxify',
+                threshold=70,
                 action=action
             )
             session.add(settings)

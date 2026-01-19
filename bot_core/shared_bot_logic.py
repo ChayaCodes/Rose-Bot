@@ -67,15 +67,32 @@ class SharedBotLogic:
         if not settings['enabled']:
             return None
 
+        from bot_core.content_filter import ContentModerator
+
         backend = settings['backend']
         api_key = settings['api_key']
-        threshold = settings['threshold'] / 100.0
+        threshold_value = settings['threshold'] / 100.0
         action = settings['action']
 
-        result = check_content_toxicity(text, backend=backend, api_key=api_key, threshold=threshold)
-        if result.get('is_toxic'):
-            result['action'] = action
-            return result
+        moderator = ContentModerator(backend=backend, api_key=api_key)
+        thresholds = {
+            'toxicity': threshold_value,
+            'spam': threshold_value,
+            'sexual': threshold_value,
+            'threat': threshold_value,
+        }
+
+        result = moderator.check_message(text, thresholds)
+        if result.is_flagged:
+            return {
+                'is_toxic': True,
+                'score': result.confidence,
+                'backend': moderator.backend,
+                'requested_backend': backend,
+                'action': action,
+                'reason': result.reason,
+                'violation_type': str(result.violation_type) if result.violation_type else None,
+            }
 
         return None
 
@@ -94,6 +111,7 @@ class SharedBotLogic:
                     action = ai_result.get('action', 'warn')
                     score = ai_result.get('score', 0.0)
                     backend = ai_result.get('backend', 'unknown')
+                    requested_backend = ai_result.get('requested_backend', backend)
                     msg_id = message.get('id')
 
                     do_warn = 'warn' in action
@@ -113,7 +131,8 @@ class SharedBotLogic:
 
                     actions_text = ' + '.join(action_parts)
 
-                    msg = get_text(chat_id, 'ai_moderation_header', backend=backend)
+                    backend_label = backend if backend == requested_backend else f"{backend} ← {requested_backend}"
+                    msg = get_text(chat_id, 'ai_moderation_header', backend=backend_label)
                     msg += get_text(chat_id, 'ai_toxic_detected')
                     msg += get_text(chat_id, 'ai_score_label', score=score)
                     msg += get_text(chat_id, 'ai_actions_label', actions=actions_text)
@@ -716,8 +735,7 @@ class SharedBotLogic:
             'perspective': '🌍',
             'openai': '🤖',
             'azure': '☁️',
-            'detoxify': '💻',
-            'rules': '📋'
+            'detoxify': '💻'
         }
 
         msg = get_text(chat_id, 'aitest_header')
@@ -827,12 +845,12 @@ class SharedBotLogic:
         backend = parts[0].lower()
         api_key = parts[1]
 
-        valid_backends = ['perspective', 'openai', 'azure', 'detoxify', 'rules']
+        valid_backends = ['perspective', 'openai', 'azure', 'detoxify']
         if backend not in valid_backends:
             self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_invalid_backend', backends=', '.join(valid_backends)))
             return
 
-        if backend in ['detoxify', 'rules']:
+        if backend in ['detoxify']:
             set_ai_backend(chat_id, backend, None)
             self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_backend_set_no_key', backend=backend))
         else:
@@ -845,7 +863,7 @@ class SharedBotLogic:
             return
 
         backend = backend.lower()
-        valid_backends = ['perspective', 'openai', 'azure', 'detoxify', 'rules']
+        valid_backends = ['perspective', 'openai', 'azure', 'detoxify']
 
         if backend not in valid_backends:
             self.actions.send_message(chat_id, get_text(chat_id, 'aimodbackend_invalid_backend', backends=', '.join(valid_backends)))
