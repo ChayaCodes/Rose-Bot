@@ -731,6 +731,7 @@ COMMAND_HELP = {
         'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'החלף מנוע AI', 'example': '/aimodbackend perspective', 'admin': True},
         'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'הגדר API key למנוע', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
         'aihelp': {'usage': '/aihelp', 'desc': 'מדריך מפורט ל-AI Moderation', 'example': '/aihelp', 'admin': False},
+        'aitest': {'usage': '/aitest <טקסט או ציטוט>', 'desc': 'בדוק הודעה עם AI והצג ציונים', 'example': '/aitest (השב להודעה)', 'admin': True},
     },
     'en': {
         'start': {'usage': '/start', 'desc': 'Start the bot and get welcome message', 'example': '/start', 'admin': False},
@@ -766,6 +767,7 @@ COMMAND_HELP = {
         'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'Change AI engine', 'example': '/aimodbackend perspective', 'admin': True},
         'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'Set API key for engine', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
         'aihelp': {'usage': '/aihelp', 'desc': 'Detailed AI Moderation guide', 'example': '/aihelp', 'admin': False},
+        'aitest': {'usage': '/aitest <text or reply>', 'desc': 'Test message with AI and show scores', 'example': '/aitest (reply to message)', 'admin': True},
     }
 }
 
@@ -1389,6 +1391,12 @@ class WhatsAppBot:
         elif command == 'aihelp':
             self.cmd_aihelp(chat_id)
         
+        elif command == 'aitest':
+            if not is_admin(chat_id, from_id, self.client):
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
+                return
+            self.cmd_aitest(chat_id, args, quoted_msg)
+        
         # ===== LANGUAGE COMMAND =====
         
         elif command == 'setlang' or command == 'lang':
@@ -1555,11 +1563,13 @@ class WhatsAppBot:
             msg += '\n/aimodstatus - בדוק הגדרות AI\n/aihelp - מדריך מלא'
             if is_admin_user:
                 msg += '\n/aimod on|off - הפעל/כבה מודרציית AI (מנהל)'
+                msg += '\n/aitest - בדיקת הודעה עם AI (מנהל)'
             msg += '\n\n'
         else:
             msg += '\n/aimodstatus - Check AI settings\n/aihelp - Detailed AI moderation guide'
             if is_admin_user:
                 msg += '\n/aimod on|off - Enable/disable AI moderation (admin)'
+                msg += '\n/aitest - Test message with AI (admin)'
             msg += '\n\n'
         
         msg += get_text(chat_id, 'help_note')
@@ -1933,6 +1943,74 @@ Example: /aimodset spam 70"""
         """Show detailed AI moderation help"""
         lang = get_chat_lang(chat_id)
         msg = get_text(chat_id, 'aihelp_full')
+        self.client.send_message(chat_id, msg)
+    
+    def cmd_aitest(self, chat_id: str, args: str, quoted_msg: Optional[str] = None):
+        """Test message with AI moderation and show detailed scores"""
+        # Get text to test
+        test_text = None
+        if quoted_msg:
+            test_text = quoted_msg
+        elif args:
+            test_text = args
+        else:
+            msg = "❌ *שימוש:* /aitest\n\nהשב להודעה או כתוב טקסט:\n/aitest בדוק את הטקסט הזה"
+            self.client.send_message(chat_id, msg)
+            return
+        
+        # Get AI settings
+        settings = get_ai_settings(chat_id)
+        
+        # Check with AI
+        from bot_core.content_filter import ContentModerationService
+        moderator = ContentModerationService(
+            backend=settings.backend,
+            api_key=settings.api_key
+        )
+        
+        # Convert percentage thresholds to 0-1 scale
+        thresholds = {
+            'toxicity': settings.toxicity_threshold / 100.0,
+            'spam': settings.spam_threshold / 100.0,
+            'sexual': settings.sexual_threshold / 100.0,
+            'threat': settings.threat_threshold / 100.0,
+        }
+        
+        result = moderator.check_message(test_text, thresholds)
+        
+        # Format response
+        backend_emoji = {
+            'perspective': '🌍',
+            'openai': '🤖',
+            'azure': '☁️',
+            'detoxify': '💻',
+            'rules': '📋'
+        }
+        
+        msg = f"🔍 *AI Moderation Test*\n\n"
+        msg += f"Backend: {backend_emoji.get(settings.backend, '❓')} {settings.backend}\n\n"
+        msg += f"📝 *Text:* {test_text[:100]}{'...' if len(test_text) > 100 else ''}\n\n"
+        msg += f"*Scores:*\n"
+        
+        if result.scores:
+            for category, score in sorted(result.scores.items()):
+                percentage = score * 100
+                threshold = thresholds.get(category, 0.7) * 100
+                emoji = '🔴' if score >= thresholds.get(category, 0.7) else '🟢'
+                msg += f"{emoji} {category.title()}: {percentage:.1f}% (סף: {threshold:.0f}%)\n"
+        else:
+            msg += "_No scores available_\n"
+        
+        msg += f"\n*Result:* "
+        if result.is_flagged:
+            msg += f"❌ *FLAGGED*\n"
+            msg += f"Type: {result.violation_type}\n"
+            msg += f"Confidence: {result.confidence*100:.1f}%\n"
+            msg += f"Reason: {result.reason}"
+        else:
+            msg += f"✅ *PASSED*\n"
+            msg += f"Reason: {result.reason}"
+        
         self.client.send_message(chat_id, msg)
     
     def cmd_aimodstatus(self, chat_id: str):
