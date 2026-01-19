@@ -208,6 +208,33 @@ app.post('/send-message', async (req, res) => {
     }
 });
 
+// Delete message
+app.post('/delete-message', async (req, res) => {
+    try {
+        const { chatId, messageId } = req.body;
+        
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+        
+        const chat = await client.getChatById(chatId);
+        const messages = await chat.fetchMessages({ limit: 50 });
+        
+        // Find the message by ID
+        const msg = messages.find(m => m.id._serialized === messageId);
+        
+        if (msg) {
+            await msg.delete(true);  // true = delete for everyone
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Message not found' });
+        }
+    } catch (error) {
+        console.error('Error deleting message:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Send media
 app.post('/send-media', async (req, res) => {
     try {

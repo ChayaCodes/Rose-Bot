@@ -106,6 +106,20 @@ class WhatsAppBridgeClient:
             logger.error(f"Failed to send message: {e}")
             return None
     
+    def delete_message(self, chat_id: str, message_id: str) -> bool:
+        """Delete a message for everyone"""
+        try:
+            response = requests.post(
+                f"{self.bridge_url}/delete-message",
+                json={'chatId': chat_id, 'messageId': message_id},
+                timeout=10
+            )
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete message: {e}")
+            return False
+    
     def send_media(self, chat_id: str, media_url: str, caption: Optional[str] = None) -> Optional[str]:
         """Send media (image, video, etc.)"""
         try:

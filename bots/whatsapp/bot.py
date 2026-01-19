@@ -121,6 +121,12 @@ class BannedUser(Base):
     user_id = Column(String(100), nullable=False)
     banned_at = Column(DateTime, default=datetime.utcnow)
     banned_by = Column(String(100))
+
+
+class ChatConfig(Base):
+    __tablename__ = 'chat_config'
+    chat_id = Column(String(100), primary_key=True)
+    delete_commands = Column(Boolean, default=False)  # Delete command messages after processing
     
 
 # Create tables
@@ -299,6 +305,11 @@ TRANSLATIONS = {
         'invite_link': '🔗 *לינק הזמנה לקבוצה:*\n\n{link}',
         'invite_failed': '❌ לא הצלחתי ליצור לינק הזמנה',
         'invalid_phone': '❌ מספר טלפון לא תקין: {phone}\n\nפורמט נכון: 972501234567 (ללא +, -, רווחים)',
+        
+        # Delete Commands
+        'delete_commands_on': '✅ מחיקת פקודות הופעלה\n\nמעכשיו פקודות שנשלחות לבוט יימחקו אוטומטית',
+        'delete_commands_off': '❌ מחיקת פקודות כובתה\n\nפקודות יישארו בצ\'אט',
+        'delete_commands_status': '🗑️ *מחיקת פקודות:* {status}',
         
         # Welcome
         'welcome_current': '👋 *הודעת קבלת פנים נוכחית:*\n\n{message}',
@@ -571,6 +582,11 @@ Example: /aimodset spam 70''',
         'invite_failed': '❌ Failed to generate invite link',
         'invalid_phone': '❌ Invalid phone number: {phone}\n\nCorrect format: 972501234567 (no +, -, spaces)',
         
+        # Delete Commands
+        'delete_commands_on': '✅ Command deletion enabled\n\nCommands sent to the bot will now be automatically deleted',
+        'delete_commands_off': '❌ Command deletion disabled\n\nCommands will remain in chat',
+        'delete_commands_status': '🗑️ *Command Deletion:* {status}',
+        
         # Welcome
         'welcome_current': '👋 *Current Welcome Message:*\n\n{message}',
         'welcome_not_set_admin': 'ℹ️ No welcome message set.\n\nAdmins can set one with /setwelcome',
@@ -698,6 +714,7 @@ COMMAND_HELP = {
         'unban': {'usage': '/unban <טלפון>', 'desc': 'בטל חסימה של משתמש', 'example': '/unban 972501234567', 'admin': True},
         'add': {'usage': '/add <טלפון>', 'desc': 'הוסף משתמש לקבוצה', 'example': '/add 972501234567', 'admin': True},
         'invite': {'usage': '/invite', 'desc': 'קבל לינק הזמנה לקבוצה', 'example': '/invite', 'admin': True},
+        'delcmds': {'usage': '/delcmds <on|off|status>', 'desc': 'הפעל/כבה מחיקת פקודות', 'example': '/delcmds on', 'admin': True},
         'welcome': {'usage': '/welcome', 'desc': 'הצג הודעת קבלת פנים נוכחית', 'example': '/welcome', 'admin': False},
         'setwelcome': {'usage': '/setwelcome <הודעה>', 'desc': 'הגדר הודעת קבלת פנים. השתמש ב-{mention} לתיוג', 'example': '/setwelcome ברוך הבא {mention}!', 'admin': True},
         'blacklist': {'usage': '/blacklist', 'desc': 'הצג רשימת מילים חסומות', 'example': '/blacklist', 'admin': False},
@@ -732,6 +749,7 @@ COMMAND_HELP = {
         'unban': {'usage': '/unban <phone>', 'desc': 'Unban a user', 'example': '/unban 972501234567', 'admin': True},
         'add': {'usage': '/add <phone>', 'desc': 'Add user to group', 'example': '/add 972501234567', 'admin': True},
         'invite': {'usage': '/invite', 'desc': 'Get group invite link', 'example': '/invite', 'admin': True},
+        'delcmds': {'usage': '/delcmds <on|off|status>', 'desc': 'Enable/disable command deletion', 'example': '/delcmds on', 'admin': True},
         'welcome': {'usage': '/welcome', 'desc': 'Show current welcome message', 'example': '/welcome', 'admin': False},
         'setwelcome': {'usage': '/setwelcome <message>', 'desc': 'Set welcome message. Use {mention} to tag', 'example': '/setwelcome Welcome {mention}!', 'admin': True},
         'blacklist': {'usage': '/blacklist', 'desc': 'Show blacklisted words', 'example': '/blacklist', 'admin': False},
@@ -930,6 +948,25 @@ def is_banned(chat_id: str, user_id: str) -> bool:
 def get_banned_users(chat_id: str) -> list:
     """Get all banned users in chat"""
     return db_session.query(BannedUser).filter_by(chat_id=chat_id).all()
+
+
+# ============ CHAT CONFIG SYSTEM ============
+
+def should_delete_commands(chat_id: str) -> bool:
+    """Check if commands should be deleted in this chat"""
+    config = db_session.query(ChatConfig).filter_by(chat_id=chat_id).first()
+    return config.delete_commands if config else False
+
+
+def set_delete_commands(chat_id: str, enabled: bool):
+    """Set whether to delete commands in this chat"""
+    config = db_session.query(ChatConfig).filter_by(chat_id=chat_id).first()
+    if config:
+        config.delete_commands = enabled
+    else:
+        config = ChatConfig(chat_id=chat_id, delete_commands=enabled)
+        db_session.add(config)
+    db_session.commit()
 
 
 # ============ BLACKLIST SYSTEM ============
@@ -1174,6 +1211,12 @@ class WhatsAppBot:
             
             self._process_command(command, args, from_id, chat_id, is_group, message)
             
+            # Delete command message if enabled for this group
+            if is_group and should_delete_commands(chat_id):
+                message_id = message.get('id')
+                if message_id:
+                    self.client.delete_message(chat_id, message_id)
+            
         except Exception as e:
             logger.error(f"Error handling command '{text}': {e}", exc_info=True)
             try:
@@ -1262,6 +1305,12 @@ class WhatsAppBot:
                 self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_invite(chat_id)
+
+        elif command == 'delcmds':
+            if not is_admin(chat_id, from_id, self.client):
+                self.client.send_message(chat_id, get_text(chat_id, 'admin_only'))
+                return
+            self.cmd_delcmds(chat_id, args)
         
         # ===== WELCOME COMMANDS =====
         
@@ -1423,13 +1472,15 @@ class WhatsAppBot:
 /ban - חסום משתמש (השב להודעה)
 /unban <טלפון> - בטל חסימה של משתמש
 /add <טלפון> - הוסף משתמש לקבוצה
-/invite - קבל קישור הזמנה לקבוצה\n\n'''
+/invite - קבל קישור הזמנה לקבוצה
+/delcmds <on|off|status> - מחיקת פקודות\n\n'''
         else:
             msg += '''\n/kick - Kick user (reply to message)
 /ban - Ban user (reply to message)
 /unban <phone> - Unban a user
 /add <phone> - Add user to group
-/invite - Get group invite link\n\n'''
+/invite - Get group invite link
+/delcmds <on|off|status> - Command deletion\n\n'''
         
         msg += get_text(chat_id, 'help_welcome')
         if lang == 'he':
@@ -1700,6 +1751,19 @@ class WhatsAppBot:
             self.client.send_message(chat_id, get_text(chat_id, 'invite_link', link=link))
         else:
             self.client.send_message(chat_id, get_text(chat_id, 'invite_failed'))
+
+    def cmd_delcmds(self, chat_id: str, args: str):
+        """Enable/disable command deletion"""
+        action = (args or '').strip().lower()
+        if action in ('on', 'enable', 'enabled'):
+            set_delete_commands(chat_id, True)
+            self.client.send_message(chat_id, get_text(chat_id, 'delete_commands_on'))
+        elif action in ('off', 'disable', 'disabled'):
+            set_delete_commands(chat_id, False)
+            self.client.send_message(chat_id, get_text(chat_id, 'delete_commands_off'))
+        else:
+            status = 'ON' if should_delete_commands(chat_id) else 'OFF'
+            self.client.send_message(chat_id, get_text(chat_id, 'delete_commands_status', status=status))
     
     def cmd_setwelcome(self, chat_id: str, welcome_text: str):
         """Set welcome message"""
