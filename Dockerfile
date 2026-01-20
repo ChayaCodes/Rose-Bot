@@ -37,8 +37,8 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 
 # Copy package files and install Node.js dependencies
-COPY package*.json ./
-RUN npm ci --only=production
+COPY package.json package-lock.json* ./
+RUN npm install --omit=dev || npm install
 
 # Copy Python requirements and install
 COPY requirements.txt ./
