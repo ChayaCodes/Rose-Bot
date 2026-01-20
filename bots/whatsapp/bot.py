@@ -28,12 +28,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load configuration
+# Load configuration - support both file-based and environment variables
+class EnvConfig:
+    """Configuration from environment variables for production"""
+    OWNER_ID = os.environ.get("OWNER_ID", "")
+    OWNER_NAME = os.environ.get("OWNER_NAME", "Bot Owner")
+    SESSION_NAME = os.environ.get("SESSION_NAME", "whatsapp-bot-session")
+    PLATFORM = "whatsapp"
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///whatsapp_bot.db")
+    MESSAGE_DUMP = None
+    LOAD = []
+    NO_LOAD = ['translation', 'rss']
+    SUDO_USERS = []
+    SUPPORT_USERS = []
+    WHITELIST_USERS = []
+    DONATION_LINK = None
+    DEL_CMDS = False
+    STRICT_GBAN = False
+    WORKERS = 8
+    WHATSAPP_QR_TERMINAL = True
+    WHATSAPP_HEADLESS = True
+
 try:
     from wa_config import Development as Config
 except ImportError:
-    logger.error("Copy sample_wa_config.py to wa_config.py and configure it first!")
-    sys.exit(1)
+    # Use environment variables in production
+    logger.info("Using environment variables for configuration")
+    Config = EnvConfig
 
 
 class WhatsAppActions:

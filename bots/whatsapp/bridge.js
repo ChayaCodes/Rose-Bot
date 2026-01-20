@@ -20,6 +20,9 @@ const dataPath = process.env.NODE_ENV === 'production'
     ? '/app/data/.wwebjs_auth'
     : undefined;  // Use default local path in development
 
+// Determine Chromium path
+const chromiumPath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+
 // Create WhatsApp client
 const client = new Client({
     authStrategy: new LocalAuth({
@@ -28,11 +31,24 @@ const client = new Client({
     }),
     puppeteer: {
         headless: true,
+        executablePath: chromiumPath,
+        timeout: 120000,  // 2 minutes timeout
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-gpu'
+            '--disable-gpu',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--disable-default-apps',
+            '--disable-sync',
+            '--disable-translate',
+            '--hide-scrollbars',
+            '--metrics-recording-only',
+            '--mute-audio',
+            '--no-first-run',
+            '--safebrowsing-disable-auto-update',
+            '--single-process'
         ]
     }
 });
