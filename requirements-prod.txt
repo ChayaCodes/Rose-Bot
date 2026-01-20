@@ -13,6 +13,7 @@ feedparser
 # WhatsApp bot dependencies
 qrcode[pil]
 Pillow
+flask
 
 # AI moderation (OpenAI only in production)
 openai
