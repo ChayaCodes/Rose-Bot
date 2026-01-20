@@ -52,6 +52,8 @@ from .ai_moderation_service import (
     set_ai_backend,
     set_ai_api_key,
     set_ai_threshold,
+    get_ai_category_thresholds,
+    set_ai_category_thresholds,
     set_ai_action,
     check_content_toxicity,
     SUPPORTED_BACKENDS
@@ -108,6 +110,8 @@ __all__ = [
     'set_ai_backend',
     'set_ai_api_key',
     'set_ai_threshold',
+    'get_ai_category_thresholds',
+    'set_ai_category_thresholds',
     'set_ai_action',
     'check_content_toxicity',
     'SUPPORTED_BACKENDS',

@@ -166,33 +166,6 @@ TRANSLATIONS = {
    /aimodset sexual 80
 
    💡 טיפ: התחילו עם 60 והתאימו לפי הצורך.
-
-   🔧 *מנועות זמינים:*
-
-💻 *detoxify* (ברירת מחדל)
-   • שפות: אנגלית
-   • עלות: חינם (מקומי)
-   • API Key: לא נדרש
-   • דרישה: pip install detoxify
-
-🌍 *perspective* (מומלץ לעברית!)
-   • שפות: עברית + אנגלית
-   • עלות: חינם (1 QPS)
-   • קבל API Key: https://perspectiveapi.com
-   • הגדרה: /aimodkey perspective <key>
-
-☁️ *azure* (מדויק מאוד)
-   • שפות: עברית + אנגלית
-   • עלות: חינם עד 5,000/חודש
-   • קבל API Key: Azure Portal
-   • הגדרה: AZURE_ENDPOINT + /aimodkey azure <key>
-
-🤖 *openai*
-   • שפות: אנגלית (בעיקר)
-   • עלות: חינם (free tier)
-   • קבל API Key: platform.openai.com
-   • הגדרה: /aimodkey openai <key>
-
 🎯 *קטגוריות לכיוון:*
 • toxicity - תוכן פוגעני
 • spam - ספאם
@@ -209,6 +182,7 @@ TRANSLATIONS = {
         'ai_moderation_header': '🤖 *מודרציית AI ({backend})*\n\n',
         'ai_toxic_detected': '❌ תוכן רעיל זוהה\n',
         'ai_score_label': 'ציון: {score:.1%}\n',
+      'ai_reason_label': 'סיבה: {reason}\n',
         'ai_actions_label': 'פעולות: {actions}',
         'toxic_content': 'תוכן רעיל',
         'no_reason': 'ללא סיבה',
@@ -293,16 +267,19 @@ TRANSLATIONS = {
         'aimod_status_cmd_action': '/aimodaction <action> - שנה פעולה',
 
         # AI Set thresholds
-        'aimodset_usage': '''❌ Usage: /aimodset <category> <threshold>
+      'aimodset_usage': '''❌ *שימוש:* /aimodset <קטגוריה|all|cat1,cat2> <סף>
 
-*Categories:*
-• toxicity - Toxic/hateful content
-• spam - Spam messages
-• sexual - Sexual content
-• threat - Threatening messages
+   *קטגוריות נפוצות:*
+   • toxicity - תוכן פוגעני
+   • spam - ספאם
+   • sexual - תוכן מיני
+   • threat - איומים
 
-*Threshold:* 0-100 (higher = more strict)
-Example: /aimodset spam 70''',
+   *סף:* 0-100 (גבוה = מחמיר יותר)
+   דוגמאות:
+   /aimodset spam 70
+   /aimodset toxicity,spam 80
+   /aimodset all 60''',
         'aimodset_invalid_category': '❌ קטגוריה לא תקינה. בחר מ: {categories}',
         'aimodset_threshold_set': '✅ סף {category} הוגדר ל-{threshold}%',
 
@@ -318,39 +295,6 @@ Example: /aimodset spam 70''',
         # AI Key command
         'aimodkey_usage': '''❌ *שימוש:* /aimodkey <backend> <api_key>
 
-🤖 *Backends זמינים:*
-
-🌍 *perspective* (Google Perspective API)
-   • תומך: עברית + אנגלית
-   • מומלץ: ✅ מצוין לעברית!
-   • API Key: חינם עד 1M בדיקות/חודש
-   • איך להשיג: https://perspectiveapi.com
-
-☁️ *azure* (Azure Content Safety)
-   • תומך: עברית + אנגלית + 100 שפות
-   • מומלץ: ✅ הכי מדויק!
-   • API Key: חינם עד 5K בדיקות/חודש
-   • איך להשיג:
-     1) צור משאב “Content Safety” ב-Azure Portal
-     2) העתק את ה-Key ואת ה-Endpoint
-     3) הגדר AZURE_ENDPOINT כמשתנה סביבה
-     4) השתמש ב-/aimodkey azure <KEY>
-   • פורטל: https://portal.azure.com
-
-🤖 *openai* (OpenAI Moderation)
-   • תומך: אנגלית בלבד
-   • API Key: דרוש חשבון OpenAI
-   • איך להשיג: https://platform.openai.com
-
-💻 *detoxify* (מודל מקומי)
-   • תומך: אנגלית בלבד
-   • ללא צורך ב-API key ✅
-   • דורש התקנה: pip install detoxify
-
-*דוגמאות שימוש:*
-/aimodkey perspective AIzaSyA...
-/aimodkey azure a1b2c3d4e5...
-
 🔒 *אבטחה:* המפתח נשמר רק עבור הקבוצה הזו
 💰 *עלות:* כל קבוצה יכולה להשתמש במפתח משלה
 
@@ -363,31 +307,6 @@ Example: /aimodset spam 70''',
         'aimodbackend_usage': '''❌ *שימוש:* /aimodbackend <backend>
 
 🔄 *החלפת מנוע AI* (ללא שינוי API key)
-
-🤖 *Backends זמינים:*
-
-🌍 *perspective* - Google Perspective
-   • תומך: עברית + אנגלית + 30 שפות
-   • חינם (1M בקשות/יום)
-   • מדויק ביותר לעברית ✅
-
-☁️ *azure* - Azure Content Safety
-   • תומך: עברית + אנגלית + 100 שפות
-   • חינם עד 5K/חודש
-   • רמה ארגונית ✅
-
-🤖 *openai* - OpenAI Moderation
-   • תומך: אנגלית בלבד
-   • חינם
-   • מדויק מאוד
-
-💻 *detoxify* - מודל מקומי
-   • תומך: אנגלית בלבד
-   • חינם, רץ מקומי
-   • ללא צורך ב-API key ✅
-
-*דוגמה:*
-/aimodbackend perspective
 
 💡 *טיפ:* השתמש ב-/aimodkey להגדרת API key לפני.''',
         'aimodbackend_invalid_backend': '❌ Backend לא תקין. בחר מ: {backends}',
@@ -605,33 +524,6 @@ The bot will automatically detect:
    /aimodset sexual 80
 
    💡 Tip: start with 60 and adjust as needed.
-
-   🔧 *Available Backends:*
-
-💻 *detoxify* (default)
-   • Languages: English
-   • Cost: Free (local)
-   • API Key: Not required
-   • Requires: pip install detoxify
-
-🌍 *perspective* (recommended for Hebrew!)
-   • Languages: Hebrew + English
-   • Cost: Free (1 QPS)
-   • Get API Key: https://perspectiveapi.com
-   • Setup: /aimodkey perspective <key>
-
-☁️ *azure* (very accurate)
-   • Languages: Hebrew + English
-   • Cost: Free up to 5,000/month
-   • Get API Key: Azure Portal
-   • Setup: AZURE_ENDPOINT + /aimodkey azure <key>
-
-🤖 *openai*
-   • Languages: English (mainly)
-   • Cost: Free (free tier)
-   • Get API Key: platform.openai.com
-   • Setup: /aimodkey openai <key>
-
 🎯 *Categories to adjust:*
 • toxicity - Offensive content
 • spam - Spam messages
@@ -648,6 +540,7 @@ The bot will automatically detect:
         'ai_moderation_header': '🤖 *AI Moderation ({backend})*\n\n',
         'ai_toxic_detected': '❌ Toxic content detected\n',
         'ai_score_label': 'Score: {score:.1%}\n',
+      'ai_reason_label': 'Reason: {reason}\n',
         'ai_actions_label': 'Actions: {actions}',
         'toxic_content': 'Toxic content',
         'no_reason': 'No reason provided',
@@ -732,16 +625,19 @@ The bot will automatically detect:
         'aimod_status_cmd_action': '/aimodaction <action> - change action',
 
         # AI Set thresholds
-        'aimodset_usage': '''❌ Usage: /aimodset <category> <threshold>
+      'aimodset_usage': '''❌ Usage: /aimodset <category|all|cat1,cat2> <threshold>
 
-*Categories:*
-• toxicity - Toxic/hateful content
-• spam - Spam messages
-• sexual - Sexual content
-• threat - Threatening messages
+   *Common categories:*
+   • toxicity - Toxic/hateful content
+   • spam - Spam messages
+   • sexual - Sexual content
+   • threat - Threatening messages
 
-*Threshold:* 0-100 (higher = more strict)
-Example: /aimodset spam 70''',
+   *Threshold:* 0-100 (higher = more strict)
+   Examples:
+   /aimodset spam 70
+   /aimodset toxicity,spam 80
+   /aimodset all 60''',
         'aimodset_invalid_category': '❌ Invalid category. Choose from: {categories}',
         'aimodset_threshold_set': '✅ {category} threshold set to {threshold}%',
 
@@ -757,39 +653,6 @@ Example: /aimodset spam 70''',
         # AI Key command
         'aimodkey_usage': '''❌ *Usage:* /aimodkey <backend> <api_key>
 
-🤖 *Available backends:*
-
-🌍 *perspective* (Google Perspective API)
-   • Supports: Hebrew + English
-   • Recommended: ✅ Great for Hebrew!
-   • API Key: Free up to 1M checks/month
-   • Get it: https://perspectiveapi.com
-
-☁️ *azure* (Azure Content Safety)
-   • Supports: Hebrew + English + 100 languages
-   • Recommended: ✅ Most accurate!
-   • API Key: Free up to 5K checks/month
-   • How to get it:
-     1) Create a “Content Safety” resource in Azure Portal
-     2) Copy the Key and the Endpoint
-     3) Set AZURE_ENDPOINT as an environment variable
-     4) Use /aimodkey azure <KEY>
-   • Portal: https://portal.azure.com
-
-🤖 *openai* (OpenAI Moderation)
-   • Supports: English only
-   • API Key: OpenAI account required
-   • Get it: https://platform.openai.com
-
-💻 *detoxify* (Local model)
-   • Supports: English only
-   • No API key needed ✅
-   • Requires: pip install detoxify
-
-*Examples:*
-/aimodkey perspective AIzaSyA...
-/aimodkey azure a1b2c3d4e5...
-
 🔒 *Security:* Key is stored only for this group
 💰 *Cost:* Each group can use its own key
 
@@ -802,31 +665,6 @@ Example: /aimodset spam 70''',
         'aimodbackend_usage': '''❌ *Usage:* /aimodbackend <backend>
 
 🔄 *Switch AI engine* (without changing API key)
-
-🤖 *Available backends:*
-
-🌍 *perspective* - Google Perspective
-   • Supports: Hebrew + English + 30 languages
-   • Free (1M requests/day)
-   • Most accurate for Hebrew ✅
-
-☁️ *azure* - Azure Content Safety
-   • Supports: Hebrew + English + 100 languages
-   • Free up to 5K/month
-   • Enterprise-grade ✅
-
-🤖 *openai* - OpenAI Moderation
-   • Supports: English only
-   • Free
-   • Very accurate
-
-💻 *detoxify* - Local model
-   • Supports: English only
-   • Free, runs locally
-   • No API key needed ✅
-
-*Example:*
-/aimodbackend perspective
 
 💡 *Tip:* Use /aimodkey to set an API key first.''',
         'aimodbackend_invalid_backend': '❌ Invalid backend. Choose from: {backends}',
@@ -926,7 +764,7 @@ COMMAND_HELP = {
       'setlang': {'usage': '/setlang <he|en>', 'desc': 'שנה שפת הבוט', 'example': '/setlang en', 'admin': True},
       'aimod': {'usage': '/aimod [on|off]', 'desc': 'הפעל/כבה מודרציית AI או הצג סטטוס', 'example': '/aimod on', 'admin': True},
       'aimodstatus': {'usage': '/aimodstatus', 'desc': 'בדוק הגדרות AI', 'example': '/aimodstatus', 'admin': False},
-      'aimodset': {'usage': '/aimodset <קטגוריה> <סף>', 'desc': 'כוונן רגישות AI (0-100)', 'example': '/aimodset toxicity 70', 'admin': True},
+      'aimodset': {'usage': '/aimodset <קטגוריה|all|cat1,cat2> <סף>', 'desc': 'כוונן רגישות AI (0-100)', 'example': '/aimodset toxicity,spam 80', 'admin': True},
       'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'החלף מנוע AI', 'example': '/aimodbackend perspective', 'admin': True},
       'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'הגדר API key למנוע', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
       'aihelp': {'usage': '/aihelp', 'desc': 'מדריך מפורט ל-AI Moderation', 'example': '/aihelp', 'admin': False},
@@ -962,7 +800,7 @@ COMMAND_HELP = {
       'setlang': {'usage': '/setlang <he|en>', 'desc': 'Change bot language', 'example': '/setlang en', 'admin': True},
       'aimod': {'usage': '/aimod [on|off]', 'desc': 'Enable/disable AI moderation or show status', 'example': '/aimod on', 'admin': True},
       'aimodstatus': {'usage': '/aimodstatus', 'desc': 'Check AI settings', 'example': '/aimodstatus', 'admin': False},
-      'aimodset': {'usage': '/aimodset <category> <threshold>', 'desc': 'Adjust AI sensitivity (0-100)', 'example': '/aimodset toxicity 70', 'admin': True},
+      'aimodset': {'usage': '/aimodset <category|all|cat1,cat2> <threshold>', 'desc': 'Adjust AI sensitivity (0-100)', 'example': '/aimodset toxicity,spam 80', 'admin': True},
       'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'Change AI engine', 'example': '/aimodbackend perspective', 'admin': True},
       'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'Set API key for engine', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
       'aihelp': {'usage': '/aihelp', 'desc': 'Detailed AI Moderation guide', 'example': '/aihelp', 'admin': False},

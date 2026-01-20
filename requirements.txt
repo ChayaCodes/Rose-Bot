@@ -18,6 +18,7 @@ Pillow
 detoxify
 torch
 openai
+python-dotenv
 
 # For WhatsApp Web API:
 # Option 1: Install Node.js and run: npm install whatsapp-web.js

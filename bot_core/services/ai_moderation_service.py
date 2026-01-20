@@ -4,11 +4,12 @@ Platform-independent business logic for AI content moderation
 """
 
 import logging
-from typing import Optional, Dict, Any
+import os
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from ..database import get_session
-from ..db_models import AIModeration as AIModerationSettings
+from ..db_models import AIModeration as AIModerationSettings, AIModerationThreshold
 from .ai_backends import (
     PerspectiveBackend,
     AzureBackend,
@@ -20,6 +21,19 @@ logger = logging.getLogger(__name__)
 
 # Supported backends (removed 'rules' - use blacklist for word filtering)
 SUPPORTED_BACKENDS = ['detoxify', 'perspective', 'openai', 'azure']
+
+# Environment controls
+AI_DEFAULT_BACKEND = os.getenv('AI_DEFAULT_BACKEND', 'openai').lower()
+AI_FORCE_BACKEND = os.getenv('AI_FORCE_BACKEND', '').lower().strip()
+
+def _resolve_backend(preferred: Optional[str]) -> str:
+    if AI_FORCE_BACKEND in SUPPORTED_BACKENDS:
+        return AI_FORCE_BACKEND
+    if preferred in SUPPORTED_BACKENDS:
+        return preferred
+    if AI_DEFAULT_BACKEND in SUPPORTED_BACKENDS:
+        return AI_DEFAULT_BACKEND
+    return 'openai'
 
 # Backend registry
 _BACKEND_REGISTRY = {
@@ -44,11 +58,16 @@ def get_ai_settings(chat_id: str) -> Dict[str, Any]:
     try:
         settings = session.query(AIModerationSettings).filter_by(chat_id=chat_id).first()
         if not settings:
+            backend = _resolve_backend(None)
+            api_key = None
+            if backend == 'openai' and os.getenv('OPENAI_API_KEY'):
+                api_key = os.getenv('OPENAI_API_KEY')
             return {
                 'enabled': False,
-                'backend': 'detoxify',
-                'api_key': None,
+                'backend': backend,
+                'api_key': api_key,
                 'threshold': 70,
+                'thresholds': {},
                 'action': 'delete'
             }
         threshold = settings.threshold
@@ -59,20 +78,31 @@ def get_ai_settings(chat_id: str) -> Dict[str, Any]:
         elif isinstance(threshold, int) and threshold <= 1:
             threshold = int(round(threshold * 100))
 
+        backend = _resolve_backend(settings.backend or None)
+        api_key = settings.api_key
+        if backend == 'openai' and os.getenv('OPENAI_API_KEY'):
+            api_key = os.getenv('OPENAI_API_KEY')
+
         return {
             'enabled': settings.enabled,
-            'backend': settings.backend or 'detoxify',
-            'api_key': settings.api_key,
+            'backend': backend,
+            'api_key': api_key,
             'threshold': threshold,
+            'thresholds': get_ai_category_thresholds(chat_id),
             'action': settings.action
         }
     except Exception as e:
         # If database doesn't exist yet or any error, return defaults
+        backend = _resolve_backend(None)
+        api_key = None
+        if backend == 'openai' and os.getenv('OPENAI_API_KEY'):
+            api_key = os.getenv('OPENAI_API_KEY')
         return {
             'enabled': False,
-            'backend': 'detoxify',
-            'api_key': None,
+            'backend': backend,
+            'api_key': api_key,
             'threshold': 70,
+            'thresholds': {},
             'action': 'delete'
         }
     finally:
@@ -96,7 +126,7 @@ def set_ai_enabled(chat_id: str, enabled: bool) -> None:
                 enabled=enabled,
                 backend='detoxify',
                 threshold=70,
-                action='warn'
+                action='delete'
             )
             session.add(settings)
         else:
@@ -203,6 +233,44 @@ def set_ai_threshold(chat_id: str, threshold: float) -> None:
         
         session.commit()
         logger.info(f"🎯 AI threshold set to {threshold} for {chat_id}")
+    finally:
+        session.close()
+
+
+def get_ai_category_thresholds(chat_id: str) -> Dict[str, float]:
+    """Get per-category thresholds as 0-1 floats."""
+    session = get_session()
+    try:
+        rows = session.query(AIModerationThreshold).filter_by(chat_id=chat_id).all()
+        thresholds: Dict[str, float] = {}
+        for row in rows:
+            value = row.threshold
+            if isinstance(value, float) and value <= 1:
+                value = int(round(value * 100))
+            thresholds[row.category] = float(value) / 100.0
+        return thresholds
+    except Exception:
+        return {}
+    finally:
+        session.close()
+
+
+def set_ai_category_thresholds(chat_id: str, categories: List[str], threshold: float) -> None:
+    """Set per-category thresholds (0-100)."""
+    session = get_session()
+    try:
+        if isinstance(threshold, float) and threshold <= 1:
+            threshold = int(round(threshold * 100))
+        threshold = int(threshold)
+        for category in categories:
+            row = session.query(AIModerationThreshold).filter_by(chat_id=chat_id, category=category).first()
+            if not row:
+                row = AIModerationThreshold(chat_id=chat_id, category=category, threshold=threshold)
+                session.add(row)
+            else:
+                row.threshold = threshold
+        session.commit()
+        logger.info(f"🎯 AI category thresholds set to {threshold} for {chat_id}: {', '.join(categories)}")
     finally:
         session.close()
 

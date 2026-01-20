@@ -91,6 +91,14 @@ class AIModeration(Base):
     action = Column(String(20), default='delete')  # warn, delete, kick, ban
 
 
+class AIModerationThreshold(Base):
+    """Per-category AI moderation thresholds"""
+    __tablename__ = 'ai_moderation_thresholds'
+    chat_id = Column(String(100), primary_key=True)
+    category = Column(String(50), primary_key=True)
+    threshold = Column(Integer, default=70)  # 0-100 per-category threshold
+
+
 class ChatLanguage(Base):
     """Language preference per chat"""
     __tablename__ = 'language'

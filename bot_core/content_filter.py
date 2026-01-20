@@ -258,6 +258,18 @@ class ContentModerator:
             'insult': ContentType.INSULT,
             'identity_hate': ContentType.IDENTITY_HATE,
             'sexual': ContentType.SEXUAL,
+            'sexual_minors': ContentType.SEXUAL,
+            'harassment': ContentType.TOXIC,
+            'harassment_threatening': ContentType.THREAT,
+            'hate': ContentType.IDENTITY_HATE,
+            'hate_threatening': ContentType.THREAT,
+            'violence': ContentType.THREAT,
+            'violence_graphic': ContentType.THREAT,
+            'self_harm': ContentType.THREAT,
+            'self_harm_intent': ContentType.THREAT,
+            'self_harm_instructions': ContentType.THREAT,
+            'illicit': ContentType.SPAM,
+            'illicit_violent': ContentType.THREAT,
             'spam': ContentType.SPAM,
             'promotion': ContentType.PROMOTION,
         }
@@ -355,28 +367,30 @@ class ContentModerator:
                     return categories.__dict__.items()
                 return []
 
+            raw_keys = [
+                'sexual',
+                'sexual/minors',
+                'harassment',
+                'harassment/threatening',
+                'hate',
+                'hate/threatening',
+                'illicit',
+                'illicit/violent',
+                'self-harm',
+                'self-harm/intent',
+                'self-harm/instructions',
+                'violence',
+                'violence/graphic',
+            ]
+
             scores = {
-                'toxicity': max(_score('harassment'), _score('hate'), _score('violence')),
-                'severe_toxicity': max(
-                    _score('harassment/threatening'),
-                    _score('hate/threatening'),
-                    _score('violence/graphic'),
-                ),
-                'obscene': max(_score('sexual'), _score('sexual/minors')),
-                'threat': max(
-                    _score('harassment/threatening'),
-                    _score('hate/threatening'),
-                    _score('violence'),
-                ),
-                'insult': _score('harassment'),
-                'identity_hate': _score('hate'),
-                'sexual': max(_score('sexual'), _score('sexual/minors')),
-                'spam': 0.0,
+                key.replace('/', '_').replace('-', '_'): _score(key)
+                for key in raw_keys
             }
 
             # Check against thresholds
             for category, score in scores.items():
-                threshold = thresholds.get(category, 0.7)
+                threshold = thresholds.get(category, thresholds.get('toxicity', 0.7))
                 if score >= threshold:
                     return ModerationResult(
                         is_flagged=True,
@@ -387,12 +401,15 @@ class ContentModerator:
                     )
 
             if flagged:
-                flagged_categories = [k for k, v in _category_items() if v]
+                flagged_categories = [
+                    k.replace('/', '_').replace('-', '_')
+                    for k, v in _category_items() if v
+                ]
                 return ModerationResult(
-                    is_flagged=True,
-                    violation_type=ContentType.TOXIC,
+                    is_flagged=False,
+                    violation_type=None,
                     confidence=max(scores.values()) if scores else 0.0,
-                    reason=f"Flagged: {', '.join(flagged_categories)}",
+                    reason=f"Flagged by backend but below thresholds: {', '.join(flagged_categories)}",
                     scores=scores
                 )
 

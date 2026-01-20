@@ -28,8 +28,8 @@ from bot_core.services.language_service import get_chat_language as get_chat_lan
 from bot_core.services.ban_service import add_ban, remove_ban
 from bot_core.services.chat_config_service import should_delete_commands, set_delete_commands
 from bot_core.services.ai_moderation_service import (
-    get_ai_settings, set_ai_enabled, set_ai_backend, set_ai_api_key, set_ai_threshold, set_ai_action,
-    check_content_toxicity
+    get_ai_settings, set_ai_enabled, set_ai_backend, set_ai_api_key, set_ai_threshold,
+    set_ai_category_thresholds, set_ai_action, check_content_toxicity
 )
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,7 @@ class SharedBotLogic:
             'sexual': threshold_value,
             'threat': threshold_value,
         }
+        thresholds.update(settings.get('thresholds', {}))
 
         result = moderator.check_message(text, thresholds)
         if result.is_flagged:
@@ -139,6 +140,7 @@ class SharedBotLogic:
                     msg = get_text(chat_id, 'ai_moderation_header', backend=backend_label)
                     msg += get_text(chat_id, 'ai_toxic_detected')
                     msg += get_text(chat_id, 'ai_score_label', score=score)
+                    msg += get_text(chat_id, 'ai_reason_label', reason=ai_result.get('reason', get_text(chat_id, 'no_reason')))
                     msg += get_text(chat_id, 'ai_actions_label', actions=actions_text)
                     self.actions.send_message(chat_id, msg)
 
@@ -667,12 +669,12 @@ class SharedBotLogic:
         self.actions.send_message(chat_id, msg)
 
     def cmd_aimodset(self, chat_id: str, args: str):
-        parts = args.split()
+        parts = args.rsplit(maxsplit=1)
         if len(parts) != 2:
             self.actions.send_message(chat_id, get_text(chat_id, 'aimodset_usage'))
             return
 
-        category = parts[0].lower()
+        categories_raw = parts[0].lower()
         try:
             threshold = int(parts[1])
             if threshold < 0 or threshold > 100:
@@ -681,13 +683,30 @@ class SharedBotLogic:
             self.actions.send_message(chat_id, get_text(chat_id, 'aimod_threshold_invalid'))
             return
 
-        valid_categories = ['toxicity', 'spam', 'sexual', 'threat']
-        if category not in valid_categories:
+        def normalize_category(value: str) -> str:
+            return value.strip().lower().replace('-', '_').replace('/', '_')
+
+        valid_categories = [
+            'toxicity', 'severe_toxicity', 'obscene', 'insult', 'identity_hate',
+            'spam', 'promotion', 'sexual', 'sexual_minors', 'threat',
+            'harassment', 'harassment_threatening', 'hate', 'hate_threatening',
+            'violence', 'violence_graphic', 'self_harm', 'self_harm_intent',
+            'self_harm_instructions', 'illicit', 'illicit_violent'
+        ]
+
+        if categories_raw in ('all', '*'):
+            categories = valid_categories
+        else:
+            categories = [normalize_category(c) for c in categories_raw.split(',') if c.strip()]
+
+        invalid = [c for c in categories if c not in valid_categories]
+        if invalid:
             self.actions.send_message(chat_id, get_text(chat_id, 'aimodset_invalid_category', categories=', '.join(valid_categories)))
             return
 
-        set_ai_threshold(chat_id, category, threshold)
-        self.actions.send_message(chat_id, get_text(chat_id, 'aimodset_threshold_set', category=category, threshold=threshold))
+        set_ai_category_thresholds(chat_id, categories, threshold)
+        display_categories = 'all' if categories_raw in ('all', '*') else ', '.join(categories)
+        self.actions.send_message(chat_id, get_text(chat_id, 'aimodset_threshold_set', category=display_categories, threshold=threshold))
 
     def cmd_aihelp(self, chat_id: str):
         self.actions.send_message(chat_id, get_text(chat_id, 'aihelp_full'))
@@ -729,6 +748,7 @@ class SharedBotLogic:
             'sexual': threshold_value,
             'threat': threshold_value,
         }
+        thresholds.update(settings.get('thresholds', {}))
 
         result = moderator.check_message(test_text, thresholds)
 
@@ -744,7 +764,7 @@ class SharedBotLogic:
         if used_backend != requested_backend:
             import os
             missing_key = requested_backend in ['perspective', 'openai', 'azure'] and not (
-                settings.api_key or os.getenv(f'{requested_backend.upper()}_API_KEY')
+                settings.get('api_key') or os.getenv(f'{requested_backend.upper()}_API_KEY')
             )
             if missing_key:
                 msg += get_text(chat_id, 'aitest_backend_used_missing_key', emoji=backend_emoji.get(used_backend, '❓'), backend=used_backend)
@@ -758,12 +778,13 @@ class SharedBotLogic:
             for category, score in sorted(result.scores.items()):
                 percentage = score * 100
                 if category == 'promotion':
-                    threshold_value = thresholds.get('spam', 0.7)
+                    threshold_value = thresholds.get('spam', thresholds.get('toxicity', 0.7))
                 else:
-                    threshold_value = thresholds.get(category, 0.7)
+                    threshold_value = thresholds.get(category, thresholds.get('toxicity', 0.7))
                 threshold = threshold_value * 100
                 emoji = '🔴' if score >= threshold_value else '🟢'
-                msg += get_text(chat_id, 'aitest_score_line', emoji=emoji, category=category.title(), percentage=percentage, threshold=threshold)
+                display_category = category.replace('_', ' ').title()
+                msg += get_text(chat_id, 'aitest_score_line', emoji=emoji, category=display_category, percentage=percentage, threshold=threshold)
         else:
             msg += get_text(chat_id, 'aitest_no_scores')
 

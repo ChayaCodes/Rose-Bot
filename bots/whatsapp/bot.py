@@ -11,6 +11,13 @@ import time
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+# Load environment variables from .env if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
 from bot_core.shared_bot_logic import SharedBotLogic
 
