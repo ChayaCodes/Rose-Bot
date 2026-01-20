@@ -118,12 +118,23 @@ class WhatsAppBot:
         logger.info("Starting callback server on port 5000...")
         self.client.start_callback_server()
 
-        # Check bridge status
-        if self.client.is_ready():
-            logger.info("✅ WhatsApp Bridge is ready!")
-            logger.info("Bot is running! Send /start to test")
+        # Wait for bridge to be ready (may take time for Chromium to start)
+        max_wait = 300  # 5 minutes max wait
+        wait_interval = 5  # Check every 5 seconds
+        waited = 0
+        
+        logger.info("Waiting for WhatsApp Bridge to be ready...")
+        while waited < max_wait:
+            if self.client.is_ready():
+                logger.info("✅ WhatsApp Bridge is ready!")
+                logger.info("Bot is running! Send /start to test")
+                break
+            logger.info(f"Bridge not ready yet, waiting... ({waited}s / {max_wait}s)")
+            time.sleep(wait_interval)
+            waited += wait_interval
         else:
-            logger.error("❌ WhatsApp Bridge is not ready!")
+            logger.error(f"❌ WhatsApp Bridge not ready after {max_wait} seconds!")
+            logger.error("Please check bridge logs and try again")
             return
 
         # Keep running
