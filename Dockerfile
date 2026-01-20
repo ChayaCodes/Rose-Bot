@@ -3,31 +3,24 @@
 
 FROM node:18-slim
 
-# Install Python 3.11 and dependencies
-RUN apt-get update && apt-get install -y \
+# Install Python 3 and minimal dependencies for Puppeteer
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
-    python3-venv \
     chromium \
     fonts-liberation \
-    libappindicator3-1 \
-    libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
     libcups2 \
-    libdbus-1-3 \
-    libgdk-pixbuf2.0-0 \
-    libnspr4 \
+    libdrm2 \
+    libgbm1 \
     libnss3 \
-    libx11-xcb1 \
     libxcomposite1 \
     libxdamage1 \
     libxrandr2 \
-    xdg-utils \
-    wget \
-    ca-certificates \
     supervisor \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Set Puppeteer to use system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
@@ -40,9 +33,9 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install --omit=dev || npm install
 
-# Copy Python requirements and install
-COPY requirements.txt ./
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+# Copy Python requirements and install (production - no torch)
+COPY requirements-prod.txt ./
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements-prod.txt
 
 # Copy the rest of the application
 COPY . .
