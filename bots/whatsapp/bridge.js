@@ -477,9 +477,10 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Start server
+// Start server - bind to 0.0.0.0 for Fly.io
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`WhatsApp Bridge running on port ${PORT}`);
+const HOST = '0.0.0.0';
+app.listen(PORT, HOST, () => {
+    console.log(`WhatsApp Bridge running on ${HOST}:${PORT}`);
     console.log('Waiting for WhatsApp authentication...');
 });

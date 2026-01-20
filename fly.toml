@@ -11,38 +11,24 @@ primary_region = "ams"  # Amsterdam - change to your preferred region
   NODE_ENV = "production"
   PYTHON_ENV = "production"
 
-# WhatsApp Bridge HTTP API
-[[services]]
+# HTTP service with health check
+[http_service]
   internal_port = 3000
-  protocol = "tcp"
+  force_https = false
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
 
-  [[services.ports]]
-    port = 3000
-
-  [services.concurrency]
+  [http_service.concurrency]
     type = "connections"
     hard_limit = 25
     soft_limit = 20
 
-# Python Bot Flask API
-[[services]]
-  internal_port = 5000
-  protocol = "tcp"
-
-  [[services.ports]]
-    port = 5000
-
-  [services.concurrency]
-    type = "connections"
-    hard_limit = 25
-    soft_limit = 20
-
-# Health check
-[[services.http_checks]]
-  interval = "30s"
-  timeout = "5s"
-  path = "/health"
-  method = "GET"
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "60s"
+    path = "/health"
 
 # Persistent storage for WhatsApp session
 [mounts]
@@ -51,6 +37,6 @@ primary_region = "ams"  # Amsterdam - change to your preferred region
 
 # Machine size - free tier compatible
 [[vm]]
+  memory = "512mb"
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 512

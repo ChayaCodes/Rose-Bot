@@ -62,9 +62,9 @@ class WhatsAppBridgeClient:
                         logger.error(f"Error in group_leave handler: {e}")
             return {'status': 'ok'}
         
-        # Run Flask in a separate thread
+        # Run Flask in a separate thread - bind to 0.0.0.0 for Fly.io
         self.flask_thread = threading.Thread(
-            target=lambda: self.flask_app.run(port=self.callback_port, debug=False, use_reloader=False)
+            target=lambda: self.flask_app.run(host='0.0.0.0', port=self.callback_port, debug=False, use_reloader=False)
         )
         self.flask_thread.daemon = True
         self.flask_thread.start()
