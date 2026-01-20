@@ -255,7 +255,6 @@ TRANSLATIONS = {
         'aimod_status_action_kick': '• kick - הסרה מהקבוצה\n',
         'aimod_status_action_ban': '• ban - חסימה והסרה\n\n',
         'aimod_status_commands': '*פקודות:*\n',
-        'aimod_status_cmd_backend': '/aimodbackend <backend> - החלף מנוע\n',
         'aimod_status_cmd_threshold': '/aimodthreshold <0-100> - שנה רגישות\n',
         'aimod_status_cmd_action': '/aimodaction <action> - שנה פעולה',
 
@@ -284,27 +283,6 @@ TRANSLATIONS = {
         # AI Status details
         'aimod_status_api_key_set': '✅ מוגדר',
         'aimod_status_api_key_not_set': '❌ לא מוגדר',
-
-        # AI Key command
-        'aimodkey_usage': '''❌ *שימוש:* /aimodkey <backend> <api_key>
-
-🔒 *אבטחה:* המפתח נשמר רק עבור הקבוצה הזו
-💰 *עלות:* כל קבוצה יכולה להשתמש במפתח משלה
-
-📚 *מדריך מלא:* AI_MODERATION_SETUP.md''',
-        'aimodkey_invalid_backend': '❌ Backend לא תקין. בחר מ: {backends}',
-        'aimodkey_backend_set_no_key': '✅ Backend הוגדר ל-*{backend}*\n\nאין צורך ב-API key עבור backend זה.',
-        'aimodkey_key_saved': '✅ API key נשמר עבור *{backend}* backend!\n\n🔒 המפתח נשמר בצורה מאובטחת ומשמש רק לקבוצה זו.\n\nהשתמש ב-/aimod on להפעלה.',
-
-        # AI Backend command
-        'aimodbackend_usage': '''❌ *שימוש:* /aimodbackend <backend>
-
-🔄 *החלפת מנוע AI* (ללא שינוי API key)
-
-💡 *טיפ:* השתמש ב-/aimodkey להגדרת API key לפני.''',
-        'aimodbackend_invalid_backend': '❌ Backend לא תקין. בחר מ: {backends}',
-        'aimodbackend_missing_key': '❌ *{backend}* דורש API key!\n\n🔑 הגדר מפתח תחילה:\n/aimodkey {backend} YOUR_KEY\n\nאו הגדר משתנה סביבה:\n{env_var}\n\n⚠️ ה-backend לא שונה. תחילה הגדר API key.',
-        'aimodbackend_set': '✅ Backend הוגדר ל-*{backend}*',
 
         # AI Action command
         'aimodaction_usage': '''❌ *שימוש:* /aimodaction <action>
@@ -607,7 +585,6 @@ The bot will automatically detect:
         'aimod_status_action_kick': '• kick - remove from group\n',
         'aimod_status_action_ban': '• ban - ban and remove\n\n',
         'aimod_status_commands': '*Commands:*\n',
-        'aimod_status_cmd_backend': '/aimodbackend <backend> - change engine\n',
         'aimod_status_cmd_threshold': '/aimodthreshold <0-100> - adjust sensitivity\n',
         'aimod_status_cmd_action': '/aimodaction <action> - change action',
 
@@ -636,27 +613,6 @@ The bot will automatically detect:
         # AI Status details
         'aimod_status_api_key_set': '✅ Set',
         'aimod_status_api_key_not_set': '❌ Not set',
-
-        # AI Key command
-        'aimodkey_usage': '''❌ *Usage:* /aimodkey <backend> <api_key>
-
-🔒 *Security:* Key is stored only for this group
-💰 *Cost:* Each group can use its own key
-
-📚 *Full guide:* AI_MODERATION_SETUP.md''',
-        'aimodkey_invalid_backend': '❌ Invalid backend. Choose from: {backends}',
-        'aimodkey_backend_set_no_key': '✅ Backend set to *{backend}*\n\nNo API key needed for this backend.',
-        'aimodkey_key_saved': '✅ API key saved for *{backend}* backend!\n\n🔒 Your key is stored securely and used only for this group.\n\nUse /aimod on to enable AI moderation.',
-
-        # AI Backend command
-        'aimodbackend_usage': '''❌ *Usage:* /aimodbackend <backend>
-
-🔄 *Switch AI engine* (without changing API key)
-
-💡 *Tip:* Use /aimodkey to set an API key first.''',
-        'aimodbackend_invalid_backend': '❌ Invalid backend. Choose from: {backends}',
-        'aimodbackend_missing_key': '❌ *{backend}* requires an API key!\n\n🔑 Set a key first:\n/aimodkey {backend} YOUR_KEY\n\nOr set env var:\n{env_var}\n\n⚠️ Backend not changed. Set API key first.',
-        'aimodbackend_set': '✅ Backend set to *{backend}*',
 
         # AI Action command
         'aimodaction_usage': '''❌ *Usage:* /aimodaction <action>

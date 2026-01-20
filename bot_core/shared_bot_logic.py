@@ -28,7 +28,7 @@ from bot_core.services.language_service import get_chat_language as get_chat_lan
 from bot_core.services.ban_service import add_ban, remove_ban
 from bot_core.services.chat_config_service import should_delete_commands, set_delete_commands
 from bot_core.services.ai_moderation_service import (
-    get_ai_settings, set_ai_enabled, set_ai_backend, set_ai_api_key, set_ai_threshold,
+    get_ai_settings, set_ai_enabled, set_ai_threshold,
     set_ai_category_thresholds, set_ai_action, check_content_toxicity
 )
 
@@ -849,59 +849,7 @@ class SharedBotLogic:
 
         self.actions.send_message(chat_id, msg)
 
-    def cmd_aimodkey(self, chat_id: str, args: str):
-        parts = args.split(maxsplit=1)
-        if len(parts) != 2:
-            self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_usage'))
-            return
-
-        backend = parts[0].lower()
-        api_key = parts[1]
-
-        valid_backends = ['perspective', 'openai', 'azure', 'detoxify']
-        if backend not in valid_backends:
-            self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_invalid_backend', backends=', '.join(valid_backends)))
-            return
-
-        if backend in ['detoxify']:
-            set_ai_backend(chat_id, backend)
-            self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_backend_set_no_key', backend=backend))
-        else:
-            set_ai_backend(chat_id, backend)
-            set_ai_api_key(chat_id, api_key)
-            self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_key_saved', backend=backend))
-
-    def cmd_aimodbackend(self, chat_id: str, backend: str):
-        if not backend:
-            self.actions.send_message(chat_id, get_text(chat_id, 'aimodbackend_usage'))
-            return
-
-        backend = backend.lower()
-        valid_backends = ['perspective', 'openai', 'azure', 'detoxify']
-
-        if backend not in valid_backends:
-            self.actions.send_message(chat_id, get_text(chat_id, 'aimodbackend_invalid_backend', backends=', '.join(valid_backends)))
-            return
-
-        settings = get_ai_settings(chat_id)
-
-        if backend in ['perspective', 'openai', 'azure']:
-            if not settings['api_key']:
-                import os
-                if not os.getenv(f'{backend.upper()}_API_KEY'):
-                    self.actions.send_message(
-                        chat_id,
-                        get_text(
-                            chat_id,
-                            'aimodbackend_missing_key',
-                            backend=backend,
-                            env_var=f"{backend.upper()}_API_KEY"
-                        )
-                    )
-                    return
-
-        set_ai_backend(chat_id, backend)
-        self.actions.send_message(chat_id, get_text(chat_id, 'aimodbackend_set', backend=backend))
+    # Note: cmd_aimodkey and cmd_aimodbackend removed - OpenAI is always forced
 
     def cmd_aimodaction(self, chat_id: str, action: str):
         if not action:
