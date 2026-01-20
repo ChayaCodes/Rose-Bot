@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv
+venv
+env
+*.egg-info
+.eggs
+dist
+build
+.pytest_cache
+.mypy_cache
+
+# Node
+node_modules
+npm-debug.log
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Local auth (will use mounted volume in production)
+.wwebjs_auth
+.wwebjs_cache
+
+# Tests
+tests
+*.test.js
+*.test.py
+
+# Docs
+docs
+*.md
+!README.md
+
+# Local config
+.env.local
+*.local.py
+
+# OS
+.DS_Store
+Thumbs.db

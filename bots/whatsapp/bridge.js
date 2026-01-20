@@ -9,19 +9,31 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const express = require('express');
 const bodyParser = require('body-parser');
+const path = require('path');
 
 // Create Express app
 const app = express();
 app.use(bodyParser.json());
 
+// Determine data path (use /app/data in production for Fly.io volume)
+const dataPath = process.env.NODE_ENV === 'production' 
+    ? '/app/data/.wwebjs_auth'
+    : undefined;  // Use default local path in development
+
 // Create WhatsApp client
 const client = new Client({
     authStrategy: new LocalAuth({
-        clientId: "rose-bot"
+        clientId: "rose-bot",
+        dataPath: dataPath
     }),
     puppeteer: {
         headless: true,
-        args: ['--no-sandbox']
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu'
+        ]
     }
 });
 
@@ -438,6 +450,15 @@ app.get('/group/:groupId/invite', async (req, res) => {
         console.error('Error getting invite link:', error);
         res.status(500).json({ error: error.message });
     }
+});
+
+// Health check endpoint for Fly.io
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'ok',
+        whatsapp_ready: isReady,
+        uptime: process.uptime()
+    });
 });
 
 // Start server
