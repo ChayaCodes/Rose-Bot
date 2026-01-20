@@ -10,6 +10,7 @@ const qrcode = require('qrcode-terminal');
 const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
+const fs = require('fs');
 
 // Create Express app
 const app = express();
@@ -41,21 +42,48 @@ const client = new Client({
 let pythonCallbackUrl = null;
 let isReady = false;
 
+// Load bridge capabilities (future-proof API surface)
+let bridgeCapabilities = { version: 'unknown', actions: [], events: [], allowedMethods: {} };
+try {
+    const capabilitiesPath = path.join(__dirname, 'bridge_capabilities.json');
+    const raw = fs.readFileSync(capabilitiesPath, 'utf8');
+    bridgeCapabilities = JSON.parse(raw);
+} catch (e) {
+    console.warn('bridge_capabilities.json not found or invalid. Using minimal capabilities.');
+}
+
+const ALLOW_UNSAFE_CALLS = process.env.BRIDGE_ALLOW_UNSAFE_CALLS === 'true';
+
+async function forwardToPython(payload) {
+    if (!pythonCallbackUrl) return;
+    try {
+        const fetch = require('node-fetch');
+        await fetch(pythonCallbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (error) {
+        console.error('Error forwarding event to Python:', error);
+    }
+}
+
 // QR Code event
 client.on('qr', (qr) => {
     console.log('QR Code received. Scan with WhatsApp:');
     qrcode.generate(qr, { small: true });
     
-    // You can also send QR to Python if needed
-    if (pythonCallbackUrl) {
-        // Send QR to Python
-    }
+    forwardToPython({
+        type: 'qr',
+        data: { qr }
+    });
 });
 
 // Ready event
 client.on('ready', () => {
     console.log('WhatsApp Client is ready!');
     isReady = true;
+    forwardToPython({ type: 'ready', data: { ready: true } });
 });
 
 // Message received event
@@ -63,67 +91,187 @@ client.on('message', async (msg) => {
     console.log('Message received:', msg.body);
     console.log('Has quoted message:', msg.hasQuotedMsg);
     
-    // Forward to Python
-    if (pythonCallbackUrl) {
+    // Get quoted message info if this is a reply
+    let quotedParticipant = null;
+    let quotedMsg = null;
+    if (msg.hasQuotedMsg) {
         try {
-            const fetch = require('node-fetch');
-            
-            // Get quoted message info if this is a reply
-            let quotedParticipant = null;
-            let quotedMsg = null;
-            if (msg.hasQuotedMsg) {
-                try {
-                    const quoted = await msg.getQuotedMessage();
-                    quotedParticipant = quoted.author || quoted.from;
-                    quotedMsg = {
-                        id: quoted.id._serialized,
-                        body: quoted.body,
-                        from: quoted.author || quoted.from
-                    };
-                    console.log('Quoted participant:', quotedParticipant);
-                } catch (e) {
-                    console.error('Error getting quoted message:', e);
-                }
-            }
-            
-            // Determine chat ID (for groups, use the group ID)
-            const chatId = msg.from.includes('@g.us') ? msg.from : msg.from;
-            const senderId = msg.author || msg.from;  // In groups, author is the sender
-            
-            console.log('Sending to Python - chatId:', chatId, 'senderId:', senderId);
-            console.log('Python callback URL:', pythonCallbackUrl);
-            
-            const response = await fetch(pythonCallbackUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'message',
-                    data: {
-                        id: msg.id._serialized,
-                        body: msg.body,
-                        from: senderId,
-                        chatId: chatId,
-                        to: msg.to,
-                        timestamp: msg.timestamp,
-                        hasMedia: msg.hasMedia,
-                        isGroup: msg.from.includes('@g.us'),
-                        hasQuotedMsg: msg.hasQuotedMsg,
-                        quotedMsg: quotedMsg,
-                        quotedParticipant: quotedParticipant
-                    }
-                })
-            });
-            console.log('Python response status:', response.status);
-        } catch (error) {
-            console.error('Error forwarding message to Python:', error);
+            const quoted = await msg.getQuotedMessage();
+            quotedParticipant = quoted.author || quoted.from;
+            quotedMsg = {
+                id: quoted.id._serialized,
+                body: quoted.body,
+                from: quoted.author || quoted.from,
+                timestamp: quoted.timestamp
+            };
+            console.log('Quoted participant:', quotedParticipant);
+        } catch (e) {
+            console.error('Error getting quoted message:', e);
         }
     }
+    
+    // Determine chat ID (for groups, use the group ID)
+    const chatId = msg.from.includes('@g.us') ? msg.from : msg.from;
+    const senderId = msg.author || msg.from;  // In groups, author is the sender
+    
+    console.log('Sending to Python - chatId:', chatId, 'senderId:', senderId);
+    console.log('Python callback URL:', pythonCallbackUrl);
+    
+    await forwardToPython({
+        type: 'message',
+        data: {
+            id: msg.id._serialized,
+            body: msg.body,
+            from: senderId,
+            chatId: chatId,
+            to: msg.to,
+            timestamp: msg.timestamp,
+            hasMedia: msg.hasMedia,
+            isGroup: msg.from.includes('@g.us'),
+            isPrivate: msg.from.includes('@s.whatsapp.net'),
+            hasQuotedMsg: msg.hasQuotedMsg,
+            quotedMsg: quotedMsg,
+            quotedParticipant: quotedParticipant,
+            type: msg.type,
+            isForwarded: msg.isForwarded,
+            hasReaction: msg.hasReaction,
+            mentionedIds: msg.mentionedIds || []
+        }
+    });
 });
 
 // Disconnected event
 client.on('disconnected', (reason) => {
     console.log('Client was logged out:', reason);
     isReady = false;
+    forwardToPython({ type: 'disconnected', data: { reason } });
+});
+
+client.on('authenticated', () => {
+    forwardToPython({ type: 'authenticated', data: { success: true } });
+});
+
+client.on('auth_failure', (message) => {
+    forwardToPython({ type: 'auth_failure', data: { message } });
+});
+
+client.on('change_state', (state) => {
+    forwardToPython({ type: 'change_state', data: { state } });
+});
+
+client.on('change_battery', (batteryInfo) => {
+    forwardToPython({ type: 'change_battery', data: batteryInfo });
+});
+
+client.on('message_create', async (msg) => {
+    await forwardToPython({
+        type: 'message_create',
+        data: { id: msg.id._serialized, body: msg.body, from: msg.from, timestamp: msg.timestamp }
+    });
+});
+
+client.on('message_edit', async (msg) => {
+    await forwardToPython({
+        type: 'message_edit',
+        data: { id: msg.id._serialized, body: msg.body, from: msg.from, timestamp: msg.timestamp }
+    });
+});
+
+client.on('message_ack', (msg, ack) => {
+    forwardToPython({
+        type: 'message_ack',
+        data: { id: msg?.id?._serialized, ack }
+    });
+});
+
+client.on('message_reaction', (reaction) => {
+    forwardToPython({
+        type: 'message_reaction',
+        data: {
+            id: reaction?.id?._serialized,
+            msgId: reaction?.msgId?._serialized,
+            reaction: reaction?.reaction,
+            senderId: reaction?.senderId?._serialized,
+            timestamp: reaction?.timestamp
+        }
+    });
+});
+
+client.on('message_revoke_everyone', async (msg) => {
+    await forwardToPython({
+        type: 'message_revoke_everyone',
+        data: { id: msg.id._serialized, from: msg.from, timestamp: msg.timestamp }
+    });
+});
+
+client.on('message_revoke_me', async (msg) => {
+    await forwardToPython({
+        type: 'message_revoke_me',
+        data: { id: msg.id._serialized, from: msg.from, timestamp: msg.timestamp }
+    });
+});
+
+client.on('group_update', (notification) => {
+    forwardToPython({
+        type: 'group_update',
+        data: {
+            chatId: notification.chatId,
+            author: notification.author,
+            type: notification.type,
+            timestamp: notification.timestamp
+        }
+    });
+});
+
+client.on('group_admin_changed', (notification) => {
+    forwardToPython({
+        type: 'group_admin_changed',
+        data: {
+            chatId: notification.chatId,
+            author: notification.author,
+            type: notification.type,
+            recipientIds: notification.recipientIds || [],
+            timestamp: notification.timestamp
+        }
+    });
+});
+
+client.on('group_membership_request', (notification) => {
+    forwardToPython({
+        type: 'group_membership_request',
+        data: {
+            chatId: notification.chatId,
+            author: notification.author,
+            recipientIds: notification.recipientIds || [],
+            timestamp: notification.timestamp
+        }
+    });
+});
+
+client.on('incoming_call', (call) => {
+    forwardToPython({
+        type: 'incoming_call',
+        data: {
+            from: call.from,
+            isGroup: call.isGroup,
+            isVideo: call.isVideo,
+            timestamp: call.timestamp
+        }
+    });
+});
+
+client.on('media_uploaded', (msg) => {
+    forwardToPython({
+        type: 'media_uploaded',
+        data: { id: msg?.id?._serialized, from: msg?.from, timestamp: msg?.timestamp }
+    });
+});
+
+client.on('vote_update', (vote) => {
+    forwardToPython({
+        type: 'vote_update',
+        data: vote
+    });
 });
 
 // Group participant joined/added event
@@ -145,7 +293,9 @@ client.on('group_join', async (notification) => {
                     type: 'group_join',
                     chatId: notification.chatId,
                     participants: participantIds,
-                    author: notification.author  // Who added them (if added by admin)
+                    author: notification.author,  // Who added them (if added by admin)
+                    isGroup: true,
+                    timestamp: notification.timestamp
                 })
             });
         } catch (error) {
@@ -172,7 +322,9 @@ client.on('group_leave', async (notification) => {
                     type: 'group_leave',
                     chatId: notification.chatId,
                     participants: participantIds,
-                    author: notification.author
+                    author: notification.author,
+                    isGroup: true,
+                    timestamp: notification.timestamp
                 })
             });
         } catch (error) {
@@ -198,6 +350,118 @@ app.get('/health', (req, res) => {
 app.post('/set-callback', (req, res) => {
     pythonCallbackUrl = req.body.url;
     res.json({ success: true });
+});
+
+// Capabilities: full API surface (current + future)
+app.get('/capabilities', (req, res) => {
+    res.json({
+        success: true,
+        ready: isReady,
+        allowUnsafeCalls: ALLOW_UNSAFE_CALLS,
+        capabilities: bridgeCapabilities
+    });
+});
+
+function isMethodAllowed(scope, method) {
+    if (ALLOW_UNSAFE_CALLS) return true;
+    const allowed = bridgeCapabilities.allowedMethods || {};
+    const methods = allowed[scope] || [];
+    return methods.includes(method);
+}
+
+function serializeResult(result) {
+    if (result === undefined) return null;
+    if (result === null) return null;
+    if (typeof result === 'string' || typeof result === 'number' || typeof result === 'boolean') {
+        return result;
+    }
+    if (Array.isArray(result)) {
+        return result.map(serializeResult);
+    }
+    if (typeof result === 'object') {
+        if (result.id && result.id._serialized) {
+            return {
+                id: result.id._serialized,
+                body: result.body,
+                from: result.from,
+                to: result.to,
+                timestamp: result.timestamp,
+                type: result.type,
+                name: result.name,
+                isGroup: result.isGroup,
+                isUser: result.isUser,
+                isBusiness: result.isBusiness,
+                isEnterprise: result.isEnterprise,
+                isBlocked: result.isBlocked,
+                number: result.number,
+                pushname: result.pushname,
+                shortName: result.shortName
+            };
+        }
+        return result;
+    }
+    return result;
+}
+
+async function resolveTarget(scope, id) {
+    if (scope === 'client') return client;
+    if (!id) throw new Error('Missing id for scope: ' + scope);
+
+    if (scope === 'chat' || scope === 'group' || scope === 'channel') {
+        const chat = await client.getChatById(id);
+        if (scope === 'group' && !chat.isGroup) {
+            throw new Error('Target is not a group chat');
+        }
+        return chat;
+    }
+
+    if (scope === 'message') {
+        const msg = await client.getMessageById(id);
+        if (!msg) throw new Error('Message not found');
+        return msg;
+    }
+
+    if (scope === 'contact') {
+        const contact = await client.getContactById(id);
+        if (!contact) throw new Error('Contact not found');
+        return contact;
+    }
+
+    throw new Error('Unknown scope: ' + scope);
+}
+
+// Generic call endpoint for future expansion (covers most whatsapp-web.js methods)
+app.post('/call', async (req, res) => {
+    try {
+        const { scope, method, id, args } = req.body;
+
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+        if (!scope || !method) {
+            return res.status(400).json({ error: 'Missing scope or method' });
+        }
+        if (!isMethodAllowed(scope, method)) {
+            return res.status(403).json({ error: 'Method not allowed' });
+        }
+
+        const target = await resolveTarget(scope, id);
+        const fn = target[method];
+        if (typeof fn !== 'function') {
+            return res.status(400).json({ error: 'Method not found on target' });
+        }
+
+        const callArgs = Array.isArray(args) ? args : [];
+        const result = await fn.apply(target, callArgs);
+
+        res.json({
+            success: true,
+            result: serializeResult(result)
+        });
+    } catch (error) {
+        console.error('Error in /call:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Send message
@@ -269,6 +533,182 @@ app.post('/send-media', async (req, res) => {
         });
     } catch (error) {
         console.error('Error sending media:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Send media from base64 (future-proof)
+app.post('/send-media-base64', async (req, res) => {
+    try {
+        const { chatId, mimetype, data, filename, caption } = req.body;
+
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+
+        const { MessageMedia } = require('whatsapp-web.js');
+        const media = new MessageMedia(mimetype, data, filename);
+        const sentMsg = await client.sendMessage(chatId, media, { caption });
+
+        res.json({ success: true, messageId: sentMsg.id._serialized });
+    } catch (error) {
+        console.error('Error sending media (base64):', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Send message with mentions
+app.post('/send-mention', async (req, res) => {
+    try {
+        const { chatId, message, mentionIds } = req.body;
+
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+
+        const mentions = [];
+        if (Array.isArray(mentionIds)) {
+            for (const id of mentionIds) {
+                try {
+                    const contact = await client.getContactById(id);
+                    if (contact) mentions.push(contact);
+                } catch (e) {
+                    console.warn('Unable to resolve mention contact:', id);
+                }
+            }
+        }
+
+        const sentMsg = await client.sendMessage(chatId, message, { mentions });
+        res.json({ success: true, messageId: sentMsg.id._serialized });
+    } catch (error) {
+        console.error('Error sending mention message:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get message by ID
+app.get('/message/:messageId', async (req, res) => {
+    try {
+        const { messageId } = req.params;
+
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+
+        const msg = await client.getMessageById(messageId);
+        if (!msg) {
+            return res.status(404).json({ error: 'Message not found' });
+        }
+
+        res.json({ success: true, message: serializeResult(msg) });
+    } catch (error) {
+        console.error('Error getting message:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Download media from message
+app.get('/message/:messageId/media', async (req, res) => {
+    try {
+        const { messageId } = req.params;
+
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+
+        const msg = await client.getMessageById(messageId);
+        if (!msg) {
+            return res.status(404).json({ error: 'Message not found' });
+        }
+        if (!msg.hasMedia) {
+            return res.status(400).json({ error: 'Message has no media' });
+        }
+
+        const media = await msg.downloadMedia();
+        res.json({
+            success: true,
+            media: {
+                mimetype: media.mimetype,
+                data: media.data,
+                filename: media.filename,
+                filesize: media.filesize
+            }
+        });
+    } catch (error) {
+        console.error('Error downloading media:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get contact by ID
+app.get('/contact/:contactId', async (req, res) => {
+    try {
+        const { contactId } = req.params;
+
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+
+        const contact = await client.getContactById(contactId);
+        if (!contact) {
+            return res.status(404).json({ error: 'Contact not found' });
+        }
+
+        res.json({ success: true, contact: serializeResult(contact) });
+    } catch (error) {
+        console.error('Error getting contact:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get contact by phone number (various formats)
+app.get('/contact/by-number/:number', async (req, res) => {
+    try {
+        const { number } = req.params;
+
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+
+        const numberId = await client.getNumberId(number.replace(/\D/g, ''));
+        if (!numberId) {
+            return res.status(404).json({ error: 'Number not registered' });
+        }
+
+        const contact = await client.getContactById(numberId._serialized);
+        res.json({ success: true, contact: serializeResult(contact) });
+    } catch (error) {
+        console.error('Error getting contact by number:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get chat details (group/private detection)
+app.get('/chat/:chatId/details', async (req, res) => {
+    try {
+        const { chatId } = req.params;
+
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+
+        const chat = await client.getChatById(chatId);
+        res.json({
+            success: true,
+            chat: {
+                id: chat.id._serialized,
+                name: chat.name,
+                isGroup: chat.isGroup,
+                isReadOnly: chat.isReadOnly,
+                isMuted: chat.isMuted,
+                unreadCount: chat.unreadCount,
+                timestamp: chat.timestamp,
+                description: chat.description || null,
+                participants: chat.isGroup ? chat.participants.length : null
+            }
+        });
+    } catch (error) {
+        console.error('Error getting chat details:', error);
         res.status(500).json({ error: error.message });
     }
 });

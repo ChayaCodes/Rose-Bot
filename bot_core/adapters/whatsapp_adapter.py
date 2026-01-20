@@ -83,6 +83,44 @@ class WhatsAppAdapter(BotAdapter):
             last_name=None,
             description=wa_chat.get('description')
         )
+
+    @staticmethod
+    def is_group_chat_id(chat_id: str) -> bool:
+        """Check if WhatsApp ID is a group"""
+        return chat_id.endswith('@g.us')
+
+    @staticmethod
+    def is_private_chat_id(chat_id: str) -> bool:
+        """Check if WhatsApp ID is a private chat"""
+        return chat_id.endswith('@s.whatsapp.net')
+
+    @staticmethod
+    def normalize_phone(phone_number: str) -> str:
+        """Normalize phone number to digits only"""
+        return ''.join(ch for ch in phone_number if ch.isdigit())
+
+    @staticmethod
+    def normalize_user_id(user: str) -> str:
+        """Normalize to WhatsApp user ID format (xxx@s.whatsapp.net)"""
+        if user.endswith('@s.whatsapp.net'):
+            return user
+        digits = WhatsAppAdapter.normalize_phone(user)
+        return f"{digits}@s.whatsapp.net"
+
+    @staticmethod
+    def normalize_group_id(group: str) -> str:
+        """Normalize to WhatsApp group ID format (xxx@g.us)"""
+        if group.endswith('@g.us'):
+            return group
+        digits = WhatsAppAdapter.normalize_phone(group)
+        return f"{digits}@g.us"
+
+    @staticmethod
+    def format_mention(user_id: str) -> str:
+        """Format a WhatsApp mention string from user ID or phone"""
+        normalized = WhatsAppAdapter.normalize_user_id(user_id)
+        phone = normalized.split('@')[0]
+        return f"@{phone}"
     
     def _convert_wa_message(self, wa_msg) -> BotMessage:
         """Convert WhatsApp message to BotMessage"""
