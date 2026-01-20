@@ -21,6 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     supervisor \
     dumb-init \
     curl \
+    git \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
