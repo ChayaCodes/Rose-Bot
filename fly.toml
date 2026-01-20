@@ -37,6 +37,6 @@ primary_region = "ams"  # Amsterdam - change to your preferred region
 
 # Machine size - need more memory for Chromium
 [[vm]]
-  memory = "1024mb"
+  memory = "2gb"
   cpu_kind = "shared"
   cpus = 1

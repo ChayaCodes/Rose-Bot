@@ -19,12 +19,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxdamage1 \
     libxrandr2 \
     supervisor \
+    dumb-init \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
 # Set Puppeteer to use system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# Disable Chromium sandbox since we're running as root in container
+ENV CHROME_PATH=/usr/bin/chromium
+ENV CHROMIUM_FLAGS="--no-sandbox --disable-dev-shm-usage"
 
 # Create app directory
 WORKDIR /app

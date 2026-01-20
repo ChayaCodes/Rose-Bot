@@ -38,10 +38,7 @@ const client = new Client({
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--disable-extensions',
-            '--disable-background-networking',
             '--no-first-run',
-            '--single-process',
             '--disable-accelerated-2d-canvas',
             '--no-zygote'
         ]
