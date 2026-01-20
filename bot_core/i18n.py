@@ -114,16 +114,11 @@ TRANSLATIONS = {
 🔞 תוכן מיני
 ⚠️ איומים
 
-💻 *Backend נוכחי:* Detoxify (ללא צורך ב-API key)
+🤖 *מנוע:* OpenAI
 
 *פקודות שימושיות:*
 • /aimodstatus - בדיקת הגדרות
 • /aimodset - כוונון רגישות
-• /aimodbackend - החלפת מנוע AI
-• /aimodkey - הגדרת API key
-
-💡 *טיפ:* Detoxify עובד מצוין לאנגלית ללא עלות.
-לשיפור עברית, הוסף API key של Perspective או Azure.
 
 📚 למידע נוסף: AI_MODERATION_SETUP.md''',
         'aimod_disabled': '❌ AI Moderation כבוי',
@@ -150,8 +145,6 @@ TRANSLATIONS = {
    📝 *פקודות זמינות:*
    • /aimod on|​off - הפעל/כבה (מנהל)
    • /aimodstatus - בדוק הגדרות
-   • /aimodbackend <backend> - החלף מנוע (מנהל)
-   • /aimodkey <backend> <key> - הגדר API key (מנהל)
    • /aimodset <קטגוריה> <מספר> - כוונן רגישות לפי קטגוריה (מנהל)
    • /aimodthreshold <0-100> - רגישות כללית (מנהל)
 
@@ -473,15 +466,11 @@ The bot will automatically detect:
 🔞 Sexual content
 ⚠️ Threats
 
-📋 *Current Backend:* Detoxify (local, no API key needed)
+🤖 *Engine:* OpenAI
 
 *Useful commands:*
 • /aimodstatus - Check settings
 • /aimodset - Adjust sensitivity
-• /aimodbackend - Change AI engine
-• /aimodkey - Set API key
-
-💡 *Tip:* Add a Perspective or Azure API key for better Hebrew accuracy.
 
 📚 More info: AI_MODERATION_SETUP.md''',
         'aimod_disabled': '❌ AI Moderation disabled',
@@ -508,8 +497,6 @@ The bot will automatically detect:
    📝 *Available Commands:*
    • /aimod on|​off - Enable/disable (admin)
    • /aimodstatus - Check settings
-   • /aimodbackend <backend> - Change engine (admin)
-   • /aimodkey <backend> <key> - Set API key (admin)
    • /aimodset <category> <num> - Adjust sensitivity per category (admin)
    • /aimodthreshold <0-100> - Overall sensitivity (admin)
 
@@ -765,8 +752,6 @@ COMMAND_HELP = {
       'aimod': {'usage': '/aimod [on|off]', 'desc': 'הפעל/כבה מודרציית AI או הצג סטטוס', 'example': '/aimod on', 'admin': True},
       'aimodstatus': {'usage': '/aimodstatus', 'desc': 'בדוק הגדרות AI', 'example': '/aimodstatus', 'admin': False},
       'aimodset': {'usage': '/aimodset <קטגוריה|all|cat1,cat2> <סף>', 'desc': 'כוונן רגישות AI (0-100)', 'example': '/aimodset toxicity,spam 80', 'admin': True},
-      'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'החלף מנוע AI', 'example': '/aimodbackend perspective', 'admin': True},
-      'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'הגדר API key למנוע', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
       'aihelp': {'usage': '/aihelp', 'desc': 'מדריך מפורט ל-AI Moderation', 'example': '/aihelp', 'admin': False},
       'aitest': {'usage': '/aitest <טקסט> או השב להודעה', 'desc': 'בדוק הודעה עם AI והצג ציונים', 'example': '/aitest בדוק את הטקסט הזה', 'admin': True},
    },
@@ -801,8 +786,6 @@ COMMAND_HELP = {
       'aimod': {'usage': '/aimod [on|off]', 'desc': 'Enable/disable AI moderation or show status', 'example': '/aimod on', 'admin': True},
       'aimodstatus': {'usage': '/aimodstatus', 'desc': 'Check AI settings', 'example': '/aimodstatus', 'admin': False},
       'aimodset': {'usage': '/aimodset <category|all|cat1,cat2> <threshold>', 'desc': 'Adjust AI sensitivity (0-100)', 'example': '/aimodset toxicity,spam 80', 'admin': True},
-      'aimodbackend': {'usage': '/aimodbackend <backend>', 'desc': 'Change AI engine', 'example': '/aimodbackend perspective', 'admin': True},
-      'aimodkey': {'usage': '/aimodkey <backend> <key>', 'desc': 'Set API key for engine', 'example': '/aimodkey perspective YOUR_KEY', 'admin': True},
       'aihelp': {'usage': '/aihelp', 'desc': 'Detailed AI Moderation guide', 'example': '/aihelp', 'admin': False},
       'aitest': {'usage': '/aitest <text> or reply', 'desc': 'Test message with AI and show scores', 'example': '/aitest test this text', 'admin': True},
    }
