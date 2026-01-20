@@ -23,7 +23,7 @@ const dataPath = process.env.NODE_ENV === 'production'
 // Determine Chromium path
 const chromiumPath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
 
-// Create WhatsApp client
+// Create WhatsApp client with optimized Puppeteer settings for containers
 const client = new Client({
     authStrategy: new LocalAuth({
         clientId: "rose-bot",
@@ -32,7 +32,8 @@ const client = new Client({
     puppeteer: {
         headless: true,
         executablePath: chromiumPath,
-        timeout: 120000,  // 2 minutes timeout
+        timeout: 180000,  // 3 minutes timeout
+        protocolTimeout: 180000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -48,8 +49,16 @@ const client = new Client({
             '--mute-audio',
             '--no-first-run',
             '--safebrowsing-disable-auto-update',
+            '--disable-accelerated-2d-canvas',
+            '--disable-web-security',
+            '--disable-features=site-per-process',
+            '--no-zygote',
             '--single-process'
         ]
+    },
+    webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/nicosanz/nicosanzversion/refs/heads/main/nicosanzcache.html'
     }
 });
 
