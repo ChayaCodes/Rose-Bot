@@ -35,8 +35,8 @@ primary_region = "ams"  # Amsterdam - change to your preferred region
   source = "rose_bot_data"
   destination = "/app/data"
 
-# Machine size - free tier compatible
+# Machine size - need more memory for Chromium
 [[vm]]
-  memory = "512mb"
+  memory = "1024mb"
   cpu_kind = "shared"
   cpus = 1
