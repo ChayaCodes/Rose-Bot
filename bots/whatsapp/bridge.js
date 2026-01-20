@@ -48,11 +48,13 @@ const client = new Client({
 // Store for Python callback
 let pythonCallbackUrl = null;
 let isReady = false;
+let currentQR = null;  // Store current QR code for HTTP access
 
 // QR Code event
 client.on('qr', (qr) => {
     console.log('QR Code received. Scan with WhatsApp:');
     qrcode.generate(qr, { small: true });
+    currentQR = qr;  // Store for HTTP access
     
     // You can also send QR to Python if needed
     if (pythonCallbackUrl) {
@@ -198,8 +200,20 @@ client.initialize();
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
-        ready: isReady
+        ready: isReady,
+        hasQR: currentQR !== null
     });
+});
+
+// Get QR code for authentication
+app.get('/qr', (req, res) => {
+    if (isReady) {
+        return res.json({ authenticated: true, message: 'Already authenticated' });
+    }
+    if (!currentQR) {
+        return res.status(202).json({ waiting: true, message: 'Waiting for QR code...' });
+    }
+    res.json({ qr: currentQR });
 });
 
 // Set Python callback URL
