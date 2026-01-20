@@ -33,7 +33,6 @@ const client = new Client({
         headless: true,
         executablePath: chromiumPath,
         timeout: 180000,  // 3 minutes timeout
-        protocolTimeout: 180000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -41,24 +40,11 @@ const client = new Client({
             '--disable-gpu',
             '--disable-extensions',
             '--disable-background-networking',
-            '--disable-default-apps',
-            '--disable-sync',
-            '--disable-translate',
-            '--hide-scrollbars',
-            '--metrics-recording-only',
-            '--mute-audio',
             '--no-first-run',
-            '--safebrowsing-disable-auto-update',
+            '--single-process',
             '--disable-accelerated-2d-canvas',
-            '--disable-web-security',
-            '--disable-features=site-per-process',
-            '--no-zygote',
-            '--single-process'
+            '--no-zygote'
         ]
-    },
-    webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/nicosanz/nicosanzversion/refs/heads/main/nicosanzcache.html'
     }
 });
 
