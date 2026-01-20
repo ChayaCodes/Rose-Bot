@@ -19,53 +19,23 @@ class TestWhatsAppBridgeConnection:
         from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
         
         client = WhatsAppBridgeClient(
-            bridge_url="http://localhost:3000",
-            api_key="test_key"
+            bridge_url="http://localhost:3000"
         )
         
         assert client is not None
         assert client.bridge_url == "http://localhost:3000"
     
-    @pytest.mark.asyncio
-    async def test_bridge_health_check(self):
+    def test_bridge_health_check(self):
         """Test bridge health check"""
         from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
         
         client = WhatsAppBridgeClient(
-            bridge_url="http://localhost:3000",
-            api_key="test_key"
+            bridge_url="http://localhost:3000"
         )
         
-        with patch.object(client, 'health_check', new_callable=AsyncMock) as mock_health:
-            mock_health.return_value = {"status": "healthy", "connected": True}
-            
-            result = await client.health_check()
-            
-            assert result["status"] == "healthy"
-            assert result["connected"] == True
-    
-    @pytest.mark.asyncio
-    async def test_bridge_reconnection(self):
-        """Test bridge reconnection on failure"""
-        from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
-        
-        client = WhatsAppBridgeClient(
-            bridge_url="http://localhost:3000",
-            api_key="test_key"
-        )
-        
-        reconnect_count = 0
-        
-        async def mock_reconnect():
-            nonlocal reconnect_count
-            reconnect_count += 1
-            return True
-        
-        with patch.object(client, 'reconnect', mock_reconnect):
-            await client.reconnect()
-            await client.reconnect()
-            
-        assert reconnect_count == 2
+        with patch.object(client, '_request') as mock_request:
+            mock_request.return_value = {"ready": True}
+            assert client.is_ready() is True
 
 
 class TestWhatsAppAdapter:
@@ -75,7 +45,7 @@ class TestWhatsAppAdapter:
     def setup(self):
         from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
         
-        self.adapter = WhatsAppAdapter()
+        self.adapter = WhatsAppAdapter({})
     
     def test_adapter_initialization(self):
         """Test adapter initializes correctly"""
@@ -126,6 +96,36 @@ class TestWhatsAppAdapter:
             assert result["success"] == True
 
 
+class TestWhatsAppAdapterHelpers:
+    """Test WhatsApp adapter helper methods"""
+
+    def test_is_group_chat_id(self):
+        from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
+        assert WhatsAppAdapter.is_group_chat_id("123@g.us") is True
+        assert WhatsAppAdapter.is_group_chat_id("123@s.whatsapp.net") is False
+
+    def test_is_private_chat_id(self):
+        from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
+        assert WhatsAppAdapter.is_private_chat_id("123@s.whatsapp.net") is True
+        assert WhatsAppAdapter.is_private_chat_id("123@g.us") is False
+
+    def test_normalize_phone(self):
+        from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
+        assert WhatsAppAdapter.normalize_phone("+972-50-123-4567") == "972501234567"
+
+    def test_normalize_user_id(self):
+        from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
+        assert WhatsAppAdapter.normalize_user_id("972501234567") == "972501234567@s.whatsapp.net"
+
+    def test_normalize_group_id(self):
+        from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
+        assert WhatsAppAdapter.normalize_group_id("123456") == "123456@g.us"
+
+    def test_format_mention(self):
+        from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
+        assert WhatsAppAdapter.format_mention("972501234567") == "@972501234567"
+
+
 class TestWhatsAppMessageParsing:
     """Test WhatsApp message parsing"""
     
@@ -133,7 +133,7 @@ class TestWhatsAppMessageParsing:
     def setup(self):
         from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
         
-        self.adapter = WhatsAppAdapter()
+        self.adapter = WhatsAppAdapter({})
     
     def test_parse_text_message(self):
         """Test parsing text message"""
@@ -198,7 +198,7 @@ class TestWhatsAppMediaHandling:
     def setup(self):
         from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
         
-        self.adapter = WhatsAppAdapter()
+        self.adapter = WhatsAppAdapter({})
     
     def test_detect_media_message(self):
         """Test detecting media message types"""
@@ -235,7 +235,7 @@ class TestWhatsAppGroupManagement:
     def setup(self):
         from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
         
-        self.adapter = WhatsAppAdapter()
+        self.adapter = WhatsAppAdapter({})
     
     @pytest.mark.asyncio
     async def test_get_group_admins(self):
@@ -295,7 +295,7 @@ class TestWhatsAppEventHandling:
     def setup(self):
         from bot_core.adapters.whatsapp_adapter import WhatsAppAdapter
         
-        self.adapter = WhatsAppAdapter()
+        self.adapter = WhatsAppAdapter({})
     
     @pytest.mark.asyncio
     async def test_on_message_event(self):
@@ -346,88 +346,132 @@ class TestBridgeErrorHandling:
         from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
         
         self.client = WhatsAppBridgeClient(
-            bridge_url="http://localhost:3000",
-            api_key="test_key"
+            bridge_url="http://localhost:3000"
         )
     
-    @pytest.mark.asyncio
-    async def test_handle_connection_error(self):
+    def test_handle_connection_error(self):
         """Test handling connection error"""
-        with patch.object(self.client, 'send_message', new_callable=AsyncMock) as mock_send:
-            mock_send.side_effect = ConnectionError("Bridge unavailable")
-            
-            try:
-                await self.client.send_message("chat", "message")
-            except ConnectionError:
-                pass  # Expected
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.side_effect = ConnectionError("Bridge unavailable")
+            assert self.client.send_message("chat", "message") is None
     
-    @pytest.mark.asyncio
-    async def test_handle_timeout(self):
+    def test_handle_timeout(self):
         """Test handling timeout"""
-        with patch.object(self.client, 'send_message', new_callable=AsyncMock) as mock_send:
-            mock_send.side_effect = asyncio.TimeoutError()
-            
-            try:
-                await self.client.send_message("chat", "message")
-            except asyncio.TimeoutError:
-                pass  # Expected
-    
-    @pytest.mark.asyncio
-    async def test_handle_auth_error(self):
-        """Test handling authentication error"""
-        with patch.object(self.client, 'authenticate', new_callable=AsyncMock) as mock_auth:
-            mock_auth.return_value = {"success": False, "error": "Invalid API key"}
-            
-            result = await self.client.authenticate()
-            
-            assert result["success"] == False
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.side_effect = asyncio.TimeoutError()
+            assert self.client.send_message("chat", "message") is None
 
 
-class TestQRCodeAuthentication:
-    """Test QR code authentication flow"""
+class TestBridgeClientNewFunctions:
+    """Tests for newly added WhatsAppBridgeClient functions"""
     
     @pytest.fixture(autouse=True)
     def setup(self):
         from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
         
         self.client = WhatsAppBridgeClient(
-            bridge_url="http://localhost:3000",
-            api_key="test_key"
+            bridge_url="http://localhost:3000"
         )
     
-    @pytest.mark.asyncio
-    async def test_get_qr_code(self):
-        """Test getting QR code for auth"""
-        with patch.object(self.client, 'get_qr_code', new_callable=AsyncMock) as mock_qr:
-            mock_qr.return_value = {"qr": "data:image/png;base64,..."}
-            
-            result = await self.client.get_qr_code()
-            
-            assert "qr" in result
+    def test_get_chat_details(self):
+        """Test chat details endpoint"""
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.return_value = {"chat": {"id": "123@g.us", "isGroup": True}}
+            details = self.client.get_chat_details("123@g.us")
+            assert details["isGroup"] is True
+
+    def test_get_capabilities(self):
+        """Test capabilities fetch"""
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.return_value = {"capabilities": {"version": "1.0"}}
+            caps = self.client.get_capabilities()
+            assert caps["version"] == "1.0"
+
+    def test_call(self):
+        """Test generic call wrapper"""
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.return_value = {"result": {"id": "123@g.us"}}
+            result = self.client.call("chat", "getContact", "123@g.us", [])
+            assert result["id"] == "123@g.us"
     
-    @pytest.mark.asyncio
-    async def test_auth_status_check(self):
-        """Test authentication status check"""
-        with patch.object(self.client, 'is_authenticated', new_callable=AsyncMock) as mock_auth:
-            mock_auth.return_value = True
-            
-            is_auth = await self.client.is_authenticated()
-            
-            assert is_auth == True
+    def test_get_contact(self):
+        """Test get contact by ID"""
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.return_value = {"contact": {"id": "123@s.whatsapp.net"}}
+            contact = self.client.get_contact("123@s.whatsapp.net")
+            assert contact["id"].endswith("@s.whatsapp.net")
     
-    @pytest.mark.asyncio
-    async def test_wait_for_auth(self):
-        """Test waiting for authentication"""
-        auth_calls = 0
-        
-        async def mock_check():
-            nonlocal auth_calls
-            auth_calls += 1
-            return auth_calls >= 3  # Authenticated after 3 checks
-        
-        with patch.object(self.client, 'is_authenticated', mock_check):
-            # Simulate waiting
-            while not await self.client.is_authenticated():
-                await asyncio.sleep(0.01)
-            
-            assert auth_calls == 3
+    def test_get_contact_by_phone(self):
+        """Test get contact by phone number"""
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.return_value = {"contact": {"id": "972501234567@s.whatsapp.net"}}
+            contact = self.client.get_contact_by_phone("+972-50-123-4567")
+            assert contact["id"].startswith("97250")
+    
+    def test_get_message(self):
+        """Test get message by ID"""
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.return_value = {"message": {"id": "msg123", "body": "Hello"}}
+            msg = self.client.get_message("msg123")
+            assert msg["body"] == "Hello"
+    
+    def test_download_media(self):
+        """Test download media from message"""
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.return_value = {"media": {"mimetype": "image/png", "data": "base64"}}
+            media = self.client.download_media("msg123")
+            assert media["mimetype"] == "image/png"
+    
+    def test_send_media_base64(self):
+        """Test send media base64"""
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.return_value = {"messageId": "msg789"}
+            msg_id = self.client.send_media_base64("chat@g.us", "image/png", "base64", "file.png")
+            assert msg_id == "msg789"
+    
+    def test_send_mention(self):
+        """Test send mention message"""
+        with patch.object(self.client, '_request') as mock_request:
+            mock_request.return_value = {"messageId": "msg999"}
+            msg_id = self.client.send_mention("chat@g.us", "Hello @user", ["123@s.whatsapp.net"])
+            assert msg_id == "msg999"
+    
+    def test_find_contacts_by_name(self):
+        """Test finding contacts by name"""
+        with patch.object(self.client, 'call') as mock_call:
+            mock_call.return_value = [
+                {"name": "Alice", "pushname": "Ali", "shortName": "A"},
+                {"name": "Bob", "pushname": "Bobby", "shortName": "B"}
+            ]
+            results = self.client.find_contacts_by_name("ali")
+            assert len(results) == 1
+
+
+class TestBridgeClientHelpers:
+    """Tests for normalization and helpers"""
+    
+    def test_normalize_phone(self):
+        from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
+        assert WhatsAppBridgeClient.normalize_phone("+972-50-123-4567") == "972501234567"
+    
+    def test_normalize_user_id(self):
+        from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
+        assert WhatsAppBridgeClient.normalize_user_id("972501234567") == "972501234567@s.whatsapp.net"
+    
+    def test_normalize_group_id(self):
+        from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
+        assert WhatsAppBridgeClient.normalize_group_id("123456") == "123456@g.us"
+    
+    def test_is_group_id(self):
+        from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
+        assert WhatsAppBridgeClient.is_group_id("123@g.us") is True
+        assert WhatsAppBridgeClient.is_group_id("123@s.whatsapp.net") is False
+    
+    def test_is_private_id(self):
+        from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
+        assert WhatsAppBridgeClient.is_private_id("123@s.whatsapp.net") is True
+        assert WhatsAppBridgeClient.is_private_id("123@g.us") is False
+    
+    def test_format_mention(self):
+        from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
+        assert WhatsAppBridgeClient.format_mention("972501234567") == "@972501234567"
