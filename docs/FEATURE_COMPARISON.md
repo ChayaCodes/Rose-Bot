@@ -260,15 +260,12 @@
 | `/aimod on/off` | ❌ | ❌ | ✅ Enable/disable |
 | `/aimodset` | ❌ | ❌ | ✅ Set thresholds |
 | `/aimodstatus` | ❌ | ❌ | ✅ Check settings |
-| `/aimodkey` | ❌ | ❌ | ✅ Set API key per group |
-| `/aimodbackend` | ❌ | ❌ | ✅ Change backend |
-| Backends | ❌ | ❌ | ✅ 5 options (Perspective, OpenAI, Azure, Detoxify, Rules) |
-| Hebrew support | ❌ | ❌ | ✅ Perspective, Azure, Rules |
-| Per-group API keys | ❌ | ❌ | ✅ Cost control |
+| Engine | ❌ | ❌ | ✅ OpenAI (default) |
+| Hebrew support | ❌ | ❌ | ✅ OpenAI |
 
 **Status:**  
 - Telegram: ❌ **0%** - Not available  
-- WhatsApp: ✅ **100%** - **UNIQUE FEATURE!** Complete AI moderation system with multilingual support
+- WhatsApp: ✅ **100%** - **UNIQUE FEATURE!** Complete AI moderation system with OpenAI
 
 **Note:** This is a custom feature NOT in original Rose but implemented in WhatsApp bot!
 

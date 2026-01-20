@@ -316,16 +316,7 @@ class SharedBotLogic:
             self.cmd_aimodset(chat_id, args)
         elif command == 'aimodstatus':
             self.cmd_aimodstatus(chat_id)
-        elif command == 'aimodkey':
-            if not self.actions.is_admin(chat_id, from_id):
-                self.actions.send_message(chat_id, get_text(chat_id, 'admin_only'))
-                return
-            self.cmd_aimodkey(chat_id, args)
-        elif command == 'aimodbackend':
-            if not self.actions.is_admin(chat_id, from_id):
-                self.actions.send_message(chat_id, get_text(chat_id, 'admin_only'))
-                return
-            self.cmd_aimodbackend(chat_id, args)
+        # Note: aimodkey and aimodbackend commands removed - OpenAI is always the backend
         elif command == 'aimodaction':
             if not self.actions.is_admin(chat_id, from_id):
                 self.actions.send_message(chat_id, get_text(chat_id, 'admin_only'))
@@ -842,8 +833,8 @@ class SharedBotLogic:
 
             msg = get_text(chat_id, 'aimod_status_header')
             msg += get_text(chat_id, 'aimod_status_enabled')
-            msg += get_text(chat_id, 'aimod_status_backend', emoji=backend_emoji.get(backend, '❓'), name=backend_name.get(backend, backend))
-            msg += get_text(chat_id, 'aimod_status_api_key', status=api_key_status)
+            # Backend is always OpenAI (forced) - show simplified status
+            msg += "🤖 מנוע: OpenAI\n"
             msg += get_text(chat_id, 'aimod_status_threshold', threshold=settings['threshold'])
             msg += get_text(chat_id, 'aimod_status_action', action=action_display)
             msg += get_text(chat_id, 'aimod_status_actions_header')
@@ -852,7 +843,7 @@ class SharedBotLogic:
             msg += get_text(chat_id, 'aimod_status_action_kick')
             msg += get_text(chat_id, 'aimod_status_action_ban')
             msg += get_text(chat_id, 'aimod_status_commands')
-            msg += get_text(chat_id, 'aimod_status_cmd_backend')
+            # Removed aimod_status_cmd_backend - users can't change backend
             msg += get_text(chat_id, 'aimod_status_cmd_threshold')
             msg += get_text(chat_id, 'aimod_status_cmd_action')
 
