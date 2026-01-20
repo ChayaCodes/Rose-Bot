@@ -20,6 +20,7 @@ except Exception:
 
 from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
 from bot_core.shared_bot_logic import SharedBotLogic
+from bot_core.database import init_db
 
 # Setup logging
 logging.basicConfig(
@@ -148,6 +149,10 @@ class WhatsAppBot:
 def main():
     """Main entry point"""
     try:
+        # Initialize database tables
+        logger.info("Initializing database...")
+        init_db()
+        
         bot = WhatsAppBot()
         bot.run()
     except KeyboardInterrupt:

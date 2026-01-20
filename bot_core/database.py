@@ -3,6 +3,7 @@ Database initialization and session management
 """
 
 import logging
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 from .db_models import Base
@@ -11,8 +12,11 @@ from .db_models import Base
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Database configuration
-DATABASE_URL = "sqlite:///bot.db"
+# Database configuration - use /app/data in production for persistence
+if os.environ.get('NODE_ENV') == 'production':
+    DATABASE_URL = "sqlite:////app/data/bot.db"
+else:
+    DATABASE_URL = os.environ.get('DATABASE_URL', "sqlite:///bot.db")
 
 # Create engine
 engine = create_engine(
