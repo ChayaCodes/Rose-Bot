@@ -412,7 +412,7 @@ class SharedBotLogic:
         self.actions.send_message(chat_id, msg)
 
     def cmd_info(self, chat_id: str, from_id: str):
-        msg = get_text(chat_id, 'bot_info', from_id=from_id, chat_id=chat_id)
+        msg = get_text(chat_id, 'bot_info', from_id=from_id, chat_id_value=chat_id)
         self.actions.send_message(chat_id, msg)
 
     def cmd_rules(self, chat_id: str):
