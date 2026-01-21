@@ -19,6 +19,7 @@ except Exception:
     pass
 
 from bot_core.whatsapp_bridge_client import WhatsAppBridgeClient
+from bot_core.database import init_db
 from bot_core.shared_bot_logic import SharedBotLogic
 
 # Setup logging
@@ -75,6 +76,7 @@ class WhatsAppActions:
 
 class WhatsAppBot:
     def __init__(self):
+        init_db()
         self.client = WhatsAppBridgeClient(
             bridge_url="http://localhost:3000",
             callback_port=5000
