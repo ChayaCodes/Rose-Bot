@@ -1,5 +1,7 @@
 """Deprecated rules backend (disabled)."""
 
+raise ImportError("Rules backend removed; OpenAI is the only supported backend.")
+
 from typing import Dict, Any
 from .base_backend import BaseBackend
 

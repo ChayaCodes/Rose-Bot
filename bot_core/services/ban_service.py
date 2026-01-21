@@ -13,7 +13,7 @@ from ..db_models import Ban
 logger = logging.getLogger(__name__)
 
 
-def add_ban(chat_id: str, user_id: str, user_name: str = None, banned_by: str = None, reason: str = None) -> None:
+def add_ban(chat_id: str, user_id: str, user_name: str = None, banned_by: str = None, reason: str = None) -> bool:
     """
     Ban a user from a chat
     
@@ -44,6 +44,8 @@ def add_ban(chat_id: str, user_id: str, user_name: str = None, banned_by: str = 
             session.add(ban)
             session.commit()
             logger.info(f"🚫 User {user_name} banned in {chat_id}")
+            return True
+        return False
     finally:
         session.close()
 

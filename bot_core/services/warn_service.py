@@ -55,6 +55,12 @@ def warn_user(chat_id: str, user_id: str, user_name: str, reason: Optional[str] 
         session.close()
 
 
+def add_warn(chat_id: str, user_id: str, user_name: str, reason: Optional[str] = None) -> bool:
+    """Compatibility wrapper to add a warning and return success."""
+    warn_user(chat_id, user_id, user_name, reason)
+    return True
+
+
 def get_user_warns(chat_id: str, user_id: str) -> Tuple[int, int]:
     """
     Get warning count for a user
@@ -104,6 +110,11 @@ def reset_user_warns(chat_id: str, user_id: str) -> int:
         return count
     finally:
         session.close()
+
+
+def reset_warns(chat_id: str, user_id: str) -> bool:
+    """Compatibility wrapper to reset warnings and return boolean."""
+    return reset_user_warns(chat_id, user_id) > 0
 
 
 def set_warn_limit(chat_id: str, limit: int) -> None:

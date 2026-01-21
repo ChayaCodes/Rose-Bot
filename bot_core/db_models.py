@@ -3,7 +3,7 @@ Database Models - Platform Independent
 All database models used by the bot
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Float
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
@@ -16,9 +16,11 @@ class Warn(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(String(100), nullable=False)
     chat_id = Column(String(100), nullable=False)
+    user_name = Column(String(255))
     reason = Column(Text)
     warned_by = Column(String(100))
     date = Column(DateTime, default=datetime.utcnow)
+    warned_at = Column(DateTime, default=datetime.utcnow)
 
 
 class WarnSettings(Base):
@@ -35,9 +37,11 @@ class Ban(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(String(100), nullable=False)
     chat_id = Column(String(100), nullable=False)
+    user_name = Column(String(255))
     reason = Column(Text)
     banned_by = Column(String(100))
     date = Column(DateTime, default=datetime.utcnow)
+    banned_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Rules(Base):
@@ -70,14 +74,26 @@ class Lock(Base):
     lock_links = Column(Boolean, default=False)
     lock_stickers = Column(Boolean, default=False)
     lock_media = Column(Boolean, default=False)
+    lock_all = Column(Boolean, default=False)
 
 
 class FloodControl(Base):
     """Anti-flood settings"""
     __tablename__ = 'flood_control'
-    chat_id = Column(String(100), primary_key=True)
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(String(100), nullable=False)
+    user_id = Column(String(100), nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
     limit = Column(Integer, default=5)  # messages
     timeframe = Column(Integer, default=10)  # seconds
+
+
+class FloodSettings(Base):
+    """Per-chat flood settings"""
+    __tablename__ = 'flood_settings'
+    chat_id = Column(String(100), primary_key=True)
+    limit = Column(Integer, default=5)
+    timeframe = Column(Integer, default=10)
 
 
 class AIModeration(Base):
@@ -87,8 +103,8 @@ class AIModeration(Base):
     enabled = Column(Boolean, default=False)
     backend = Column(String(20), default='detoxify')  # detoxify, perspective, openai, azure
     api_key = Column(String(255), nullable=True)  # API key for external services
-    threshold = Column(Integer, default=70)  # 0-100 toxicity threshold
-    action = Column(String(20), default='delete')  # warn, delete, kick, ban
+    threshold = Column(Float, default=0.7)  # 0.0-1.0 toxicity threshold
+    action = Column(String(20), default='warn')  # warn, delete, kick, ban
 
 
 class AIModerationThreshold(Base):
@@ -96,14 +112,14 @@ class AIModerationThreshold(Base):
     __tablename__ = 'ai_moderation_thresholds'
     chat_id = Column(String(100), primary_key=True)
     category = Column(String(50), primary_key=True)
-    threshold = Column(Integer, default=70)  # 0-100 per-category threshold
+    threshold = Column(Float, default=0.7)  # 0.0-1.0 per-category threshold
 
 
 class ChatLanguage(Base):
     """Language preference per chat"""
     __tablename__ = 'language'
     chat_id = Column(String(100), primary_key=True)
-    lang_code = Column(String(10), default='he')  # he, en, etc.
+    lang_code = Column(String(10), default='en')  # he, en, etc.
 
 
 class ChatConfig(Base):

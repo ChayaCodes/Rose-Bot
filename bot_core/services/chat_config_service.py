@@ -30,7 +30,7 @@ def should_delete_commands(chat_id: str) -> bool:
         session.close()
 
 
-def set_delete_commands(chat_id: str, enabled: bool) -> None:
+def set_delete_commands(chat_id: str, enabled: bool) -> bool:
     """
     Set whether to auto-delete command messages
     
@@ -50,5 +50,6 @@ def set_delete_commands(chat_id: str, enabled: bool) -> None:
         
         status = "enabled" if enabled else "disabled"
         logger.info(f"🗑️ Command deletion {status} in {chat_id}")
+        return True
     finally:
         session.close()

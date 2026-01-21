@@ -13,7 +13,7 @@ from ..db_models import BlacklistWord as Blacklist
 logger = logging.getLogger(__name__)
 
 
-def add_blacklist_word(chat_id: str, word: str) -> None:
+def add_blacklist_word(chat_id: str, word: str) -> bool:
     """
     Add a word to blacklist
     
@@ -23,17 +23,16 @@ def add_blacklist_word(chat_id: str, word: str) -> None:
     """
     session = get_session()
     try:
-        # Check if already exists
-        existing = session.query(Blacklist).filter_by(
-            chat_id=chat_id,
-            word=word.lower()
-        ).first()
-        
-        if not existing:
-            blacklist = Blacklist(chat_id=chat_id, word=word.lower())
+        existing_words = session.query(Blacklist).filter_by(chat_id=chat_id).all()
+        if any(w.word.lower() == word.lower() for w in existing_words):
+            return True
+
+        if word:
+            blacklist = Blacklist(chat_id=chat_id, word=word)
             session.add(blacklist)
             session.commit()
             logger.info(f"✅ Added '{word}' to blacklist in {chat_id}")
+        return True
     finally:
         session.close()
 
@@ -51,12 +50,14 @@ def remove_blacklist_word(chat_id: str, word: str) -> bool:
     """
     session = get_session()
     try:
-        count = session.query(Blacklist).filter_by(
-            chat_id=chat_id,
-            word=word.lower()
-        ).delete()
+        words = session.query(Blacklist).filter_by(chat_id=chat_id).all()
+        to_delete = [w for w in words if w.word.lower() == word.lower()]
+        count = 0
+        for entry in to_delete:
+            session.delete(entry)
+            count += 1
         session.commit()
-        
+
         if count > 0:
             logger.info(f"✅ Removed '{word}' from blacklist in {chat_id}")
             return True
@@ -107,7 +108,7 @@ def check_blacklist(chat_id: str, text: str) -> str:
     return None
 
 
-def clear_blacklist(chat_id: str) -> int:
+def clear_blacklist(chat_id: str) -> bool:
     """
     Clear all blacklisted words for a chat
     
@@ -123,6 +124,16 @@ def clear_blacklist(chat_id: str) -> int:
         session.commit()
         
         logger.info(f"✅ Cleared {count} blacklist words in {chat_id}")
-        return count
+        return count > 0
     finally:
         session.close()
+
+
+def get_blacklist(chat_id: str) -> List[str]:
+    """Compatibility alias for get_blacklist_words."""
+    return get_blacklist_words(chat_id)
+
+
+def get_blacklist_action(chat_id: str) -> str:
+    """Return blacklist action (default: delete)."""
+    return 'delete'

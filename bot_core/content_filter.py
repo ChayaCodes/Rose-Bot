@@ -2,11 +2,8 @@
 AI-powered Content Moderation
 Detects toxic, spam, sexual, threatening content
 
-Supports multiple backends:
-- Perspective API (Google) - Best for multilingual (Hebrew, English, etc.)
-- Azure Content Moderator (Microsoft) - Enterprise-grade
-- OpenAI Moderation API - Excellent accuracy (English only)
-- Detoxify - Local ML model (no API key needed)
+Backend:
+- OpenAI Moderation API
 """
 
 import re
@@ -45,20 +42,17 @@ class ModerationResult:
 class ContentModerator:
     """
     AI-powered content moderation
-    Supports multiple backends:
-    - perspective: Google Perspective API (multilingual)
-    - azure: Azure Content Moderator
+    Supports a single backend:
     - openai: OpenAI Moderation API
-    - detoxify: Local ML model
     """
     
-    def __init__(self, backend: str = 'detoxify', api_key: Optional[str] = None):
+    def __init__(self, backend: str = 'openai', api_key: Optional[str] = None):
         """
         Initialize content moderator
         
         Args:
-            backend: Moderation backend ('perspective', 'azure', 'openai', 'detoxify')
-            api_key: API key for cloud services (if needed)
+            backend: Moderation backend ('openai')
+            api_key: OpenAI API key
         """
         self.backend = backend
         self.api_key = api_key or os.getenv(f'{backend.upper()}_API_KEY')
@@ -67,18 +61,10 @@ class ContentModerator:
         self.openai_client_type = None
         self.use_ai = False  # Will be set to True if AI model loads successfully
         
-        if backend == 'detoxify':
-            self._init_detoxify()
-        elif backend == 'perspective':
-            self._init_perspective()
-        elif backend == 'openai':
-            self._init_openai()
-        elif backend == 'azure':
-            self._init_azure()
-        else:
-            logger.warning(f"Unknown backend '{backend}', falling back to detoxify")
-            self.backend = 'detoxify'
-            self._init_detoxify()
+        if backend != 'openai':
+            logger.warning(f"Only OpenAI is supported. Switching backend '{backend}' to 'openai'.")
+        self.backend = 'openai'
+        self._init_openai()
         
         # Spam keywords (rule-based) - Hebrew + English
         self.spam_keywords_en = [
@@ -143,8 +129,6 @@ class ContentModerator:
         """Initialize OpenAI Moderation API"""
         if not self.api_key:
             logger.warning("⚠️ OPENAI_API_KEY not set. Get it from: https://platform.openai.com/api-keys")
-            self.backend = 'detoxify'
-            self._init_detoxify()
             return
         
         try:
@@ -161,8 +145,7 @@ class ContentModerator:
                 logger.info("✅ OpenAI Moderation API initialized (legacy client, English only)")
             except ImportError:
                 logger.warning("⚠️ OpenAI not installed. Install: pip install openai")
-                self.backend = 'detoxify'
-                self._init_detoxify()
+                self.client = None
     
     def _init_azure(self):
         """Initialize Azure Content Moderator"""
@@ -229,23 +212,15 @@ class ContentModerator:
         
         scores = {}
         
-        # Route to appropriate backend
-        if self.backend == 'perspective' and self.client:
-            return self._check_perspective(text, thresholds)
-        elif self.backend == 'openai' and self.client:
+        if self.backend == 'openai' and self.client:
             return self._check_openai(text, thresholds)
-        elif self.backend == 'azure' and self.client:
-            return self._check_azure(text, thresholds)
-        elif self.backend == 'detoxify' and self.ai_model:
-            return self._check_detoxify(text, thresholds)
-        else:
-            return ModerationResult(
-                is_flagged=False,
-                violation_type=None,
-                confidence=0.0,
-                reason="AI backend unavailable",
-                scores={}
-            )
+        return ModerationResult(
+            is_flagged=False,
+            violation_type=None,
+            confidence=0.0,
+            reason="AI backend unavailable",
+            scores={}
+        )
 
     @staticmethod
     def _map_content_type(category: str) -> ContentType:
@@ -564,7 +539,7 @@ class ContentModerator:
         # Check for promotional content
         promo_score = self._check_promotion_rules(text)
         scores['promotion'] = promo_score
-        if promo_score >= thresholds.get('spam', 0.7):
+        if promo_score >= thresholds.get('promotion', 0.7):
             return ModerationResult(
                 is_flagged=True,
                 violation_type=ContentType.PROMOTION,
@@ -669,44 +644,28 @@ class ContentModerator:
     
     def get_supported_categories(self) -> List[str]:
         """Get list of supported moderation categories"""
-        if self.backend == 'perspective':
-            return ['toxicity', 'severe_toxicity', 'identity_hate', 'insult', 'threat', 'sexual']
-        elif self.backend == 'openai':
+        if self.backend == 'openai':
             return ['sexual', 'hate', 'violence', 'self_harm']
-        elif self.backend == 'azure':
-            return ['hate', 'sexual', 'violence', 'self_harm']
-        elif self.backend == 'detoxify':
-            return ['toxicity', 'severe_toxicity', 'obscene', 'threat', 'insult', 'identity_hate']
-        else:
-            return []
+        return []
     
     def get_supported_languages(self) -> List[str]:
         """Get list of supported languages"""
-        if self.backend in ['perspective', 'azure']:
-            return ['he', 'en', 'es', 'fr', 'de', 'it', 'pt', 'ar']
-        elif self.backend in ['openai', 'detoxify']:
+        if self.backend == 'openai':
             return ['en']
-        else:
-            return []
+        return []
 
 
 # Singleton instance
 _moderator_instance: Optional[ContentModerator] = None
 
 
-def get_moderator(backend: str = 'detoxify', api_key: Optional[str] = None) -> ContentModerator:
+def get_moderator(backend: str = 'openai', api_key: Optional[str] = None) -> ContentModerator:
     """
     Get or create content moderator instance
     
     Args:
-        backend: 'perspective', 'azure', 'openai', or 'detoxify'
-        api_key: API key for cloud services
-    
-    Recommended backends:
-        - 'perspective': Best for Hebrew + English (FREE, 1M requests/day)
-        - 'azure': Enterprise-grade Hebrew + English (paid)
-        - 'openai': Excellent accuracy, English only (FREE)
-        - 'detoxify': Local ML model, English only (no API key)
+        backend: 'openai'
+        api_key: OpenAI API key
     """
     global _moderator_instance
     

@@ -14,17 +14,17 @@ def get_chat_language(chat_id: str) -> str:
         chat_id: Chat identifier
     
     Returns:
-        Language code (default: 'he')
+        Language code (default: 'en')
     """
     session = get_session()
     try:
         lang = session.query(Language).filter_by(chat_id=chat_id).first()
-        return lang.lang_code if lang else 'he'
+        return lang.lang_code if lang else 'en'
     finally:
         session.close()
 
 
-def set_chat_language(chat_id: str, lang_code: str) -> None:
+def set_chat_language(chat_id: str, lang_code: str) -> bool:
     """
     Set the language for a chat
     
@@ -41,6 +41,7 @@ def set_chat_language(chat_id: str, lang_code: str) -> None:
             lang = Language(chat_id=chat_id, lang_code=lang_code)
             session.add(lang)
         session.commit()
+        return True
     finally:
         session.close()
 

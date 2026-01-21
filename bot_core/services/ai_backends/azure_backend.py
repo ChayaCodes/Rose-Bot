@@ -3,6 +3,8 @@ Azure Content Safety Backend
 Uses Azure Cognitive Services Content Safety API
 """
 
+raise ImportError("Azure backend removed; OpenAI is the only supported backend.")
+
 import requests
 import logging
 from typing import Dict, Any

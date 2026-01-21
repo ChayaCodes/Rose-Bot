@@ -7,19 +7,33 @@ class BotUser:
     """
     def __init__(
         self,
-        user_id: str,
-        first_name: str,
+        user_id: Optional[str] = None,
+        first_name: str = "",
         last_name: Optional[str] = None,
         username: Optional[str] = None,
         is_bot: bool = False,
-        language_code: Optional[str] = None
+        language_code: Optional[str] = None,
+        *,
+        name: Optional[str] = None,
+        **kwargs
     ):
-        self.id = user_id
-        self.first_name = first_name
-        self.last_name = last_name
+        legacy_id = kwargs.get('id')
+        legacy_name = kwargs.get('name')
+        self.id = user_id or legacy_id or ""
+        effective_name = name or legacy_name
+        if effective_name:
+            self.first_name = effective_name
+            self.last_name = None
+        else:
+            self.first_name = first_name
+            self.last_name = last_name
         self.username = username
         self.is_bot = is_bot
         self.language_code = language_code
+
+    @property
+    def name(self) -> str:
+        return self.full_name
     
     @property
     def full_name(self) -> str:

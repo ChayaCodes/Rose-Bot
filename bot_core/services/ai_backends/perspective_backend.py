@@ -3,6 +3,8 @@ Google Perspective API Backend
 Uses Google's Perspective API for toxicity detection
 """
 
+raise ImportError("Perspective backend removed; OpenAI is the only supported backend.")
+
 import requests
 import logging
 from typing import Dict, Any

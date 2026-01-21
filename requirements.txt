@@ -14,9 +14,7 @@ qrcode[pil]
 # Additional utilities for WhatsApp
 Pillow
 
-# AI moderation (detoxify backend)
-detoxify
-torch
+# AI moderation (OpenAI only)
 openai
 python-dotenv
 

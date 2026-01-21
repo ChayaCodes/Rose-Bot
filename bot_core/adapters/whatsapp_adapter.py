@@ -425,7 +425,7 @@ class WhatsAppAdapter(BotAdapter):
             message = self._convert_wa_message(wa_msg)
             
             # Check if it's a command
-            command_data = message.get_command()
+            command_data = message.get_command_data()
             if command_data:
                 command, args = command_data
                 if command in self.handlers['command']:

@@ -30,7 +30,7 @@ def get_rules(chat_id: str) -> Optional[str]:
         session.close()
 
 
-def set_rules(chat_id: str, rules_text: str) -> None:
+def set_rules(chat_id: str, rules_text: str) -> bool:
     """
     Set rules for a chat
     
@@ -49,6 +49,7 @@ def set_rules(chat_id: str, rules_text: str) -> None:
         session.commit()
         
         logger.info(f"✅ Rules updated for {chat_id}")
+        return True
     finally:
         session.close()
 

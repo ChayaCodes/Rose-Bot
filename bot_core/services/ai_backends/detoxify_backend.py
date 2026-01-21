@@ -3,9 +3,18 @@ Detoxify Backend
 Local ML model for toxicity detection (no API needed)
 """
 
+raise ImportError("Detoxify backend removed; OpenAI is the only supported backend.")
+
 import logging
 from typing import Dict, Any
 from .base_backend import BaseBackend
+
+try:
+    from detoxify import Detoxify
+except ImportError:
+    class Detoxify:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            raise ImportError("Detoxify library not installed")
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +46,6 @@ class DetoxifyBackend(BaseBackend):
         """Lazy load the Detoxify model"""
         if self._model is None:
             try:
-                from detoxify import Detoxify
                 self._model = Detoxify(self.model_type)
                 logger.info(f"✅ Detoxify model '{self.model_type}' loaded")
             except ImportError:

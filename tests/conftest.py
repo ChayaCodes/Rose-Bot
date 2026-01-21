@@ -40,6 +40,7 @@ def mock_actions():
             self.users_removed = []
             self.users_banned = []
             self.users_warned = []
+            self.execute_command = MagicMock(side_effect=self._execute_command)
         
         def send_message(self, chat_id, text, **kwargs):
             self.messages_sent.append({'chat_id': chat_id, 'text': text, **kwargs})
@@ -66,8 +67,20 @@ def mock_actions():
         def get_participant_info(self, chat_id, user_id):
             return {'name': 'Test User', 'id': user_id}
         
-        def execute_command(self, command, chat_id, user_id, target_user_id=None, is_admin=False):
+        def _execute_command(self, command, chat_id=None, user_id=None, target_user_id=None, is_admin=False, is_owner=False, **kwargs):
             """Execute a command and return result"""
+            chat_id = chat_id or 'test_group@g.us'
+            user_id = user_id or 'user_12345'
+
+            if 'admin' in kwargs:
+                is_admin = kwargs['admin']
+            if 'owner' in kwargs:
+                is_owner = kwargs['owner']
+                if is_owner:
+                    is_admin = True
+
+            if 'reply_to' in kwargs and target_user_id is None:
+                target_user_id = 'reply_user_123'
             cmd = command.split()[0].lstrip('/')
             args = command.split()[1:] if len(command.split()) > 1 else []
             
@@ -77,6 +90,7 @@ def mock_actions():
                 'chat_id': chat_id,
                 'user_id': user_id,
                 'is_admin': is_admin,
+                'is_owner': is_owner,
                 'target_user_id': target_user_id
             }
             

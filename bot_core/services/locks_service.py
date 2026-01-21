@@ -4,6 +4,7 @@ Platform-independent business logic for content locks
 """
 
 import logging
+import re
 from typing import Dict
 
 from ..database import get_session
@@ -12,10 +13,16 @@ from ..db_models import Lock as Locks
 logger = logging.getLogger(__name__)
 
 # Supported lock types
-LOCK_TYPES = ['links', 'stickers', 'media', 'all']
+LOCK_TYPES = ['links', 'stickers', 'media', 'all', 'url', 'sticker']
+
+_LOCK_TYPE_ALIASES = {
+    'url': 'links',
+    'link': 'links',
+    'sticker': 'stickers'
+}
 
 
-def set_lock(chat_id: str, lock_type: str, enabled: bool) -> None:
+def set_lock(chat_id: str, lock_type: str, enabled: bool) -> bool:
     """
     Set a lock for a chat
     
@@ -24,13 +31,14 @@ def set_lock(chat_id: str, lock_type: str, enabled: bool) -> None:
         lock_type: Type of lock (links, stickers, media)
         enabled: Lock enabled state
     """
+    lock_type = _LOCK_TYPE_ALIASES.get(lock_type, lock_type)
     session = get_session()
     try:
         locks = session.query(Locks).filter_by(chat_id=chat_id).first()
         if not locks:
             locks = Locks(chat_id=chat_id)
             session.add(locks)
-        
+
         if lock_type == 'links':
             locks.lock_links = enabled
         elif lock_type == 'stickers':
@@ -39,11 +47,14 @@ def set_lock(chat_id: str, lock_type: str, enabled: bool) -> None:
             locks.lock_media = enabled
         elif lock_type == 'all':
             locks.lock_all = enabled
+        else:
+            return False
         
         session.commit()
         
         status = "enabled" if enabled else "disabled"
         logger.info(f"🔒 Lock '{lock_type}' {status} in {chat_id}")
+        return True
     finally:
         session.close()
 
@@ -66,14 +77,18 @@ def get_locks(chat_id: str) -> Dict[str, bool]:
                 'links': False,
                 'stickers': False,
                 'media': False,
-                'all': False
+                'all': False,
+                'url': False,
+                'sticker': False
             }
-        
+
         return {
             'links': locks.lock_links,
             'stickers': locks.lock_stickers,
             'media': locks.lock_media,
-            'all': locks.lock_all
+            'all': locks.lock_all,
+            'url': locks.lock_links,
+            'sticker': locks.lock_stickers
         }
     finally:
         session.close()
@@ -90,12 +105,13 @@ def is_locked(chat_id: str, lock_type: str) -> bool:
     Returns:
         True if lock is enabled
     """
+    lock_type = _LOCK_TYPE_ALIASES.get(lock_type, lock_type)
     locks = get_locks(chat_id)
     return locks.get(lock_type, False) or locks.get('all', False)
 
 
-def check_message_locks(chat_id: str, has_links: bool = False, 
-                       has_stickers: bool = False, has_media: bool = False) -> bool:
+def check_message_locks(chat_id: str, message_text: str = None, has_links: bool = False,
+                       has_sticker: bool = False, has_stickers: bool = False, has_media: bool = False):
     """
     Check if a message violates any locks
     
@@ -109,6 +125,23 @@ def check_message_locks(chat_id: str, has_links: bool = False,
         True if message violates locks
     """
     locks = get_locks(chat_id)
+    sticker_present = has_sticker or has_stickers
+
+    if isinstance(message_text, str):
+        if not message_text.strip():
+            message_text = None
+        else:
+            url_patterns = [
+                r'https?://\S+',
+                r'www\.\S+',
+                r'\b\S+\.\S{2,}\b'
+            ]
+            if any(re.search(pattern, message_text, re.IGNORECASE) for pattern in url_patterns):
+                has_links = True
+    elif message_text is None:
+        pass
+    else:
+        message_text = None
     
     if locks.get('all', False):
         logger.info(f"🔒 All content locked in {chat_id}")
@@ -116,17 +149,31 @@ def check_message_locks(chat_id: str, has_links: bool = False,
     
     if has_links and locks.get('links', False):
         logger.info(f"🔒 Links locked in {chat_id}")
-        return True
+        return 'url'
     
-    if has_stickers and locks.get('stickers', False):
+    if sticker_present and locks.get('stickers', False):
         logger.info(f"🔒 Stickers locked in {chat_id}")
-        return True
+        return 'sticker'
     
     if has_media and locks.get('media', False):
         logger.info(f"🔒 Media locked in {chat_id}")
-        return True
+        return 'media'
     
     return False
+
+
+def check_lock_violations(chat_id: str, message) -> bool:
+    """Compatibility wrapper for lock checks against a message object."""
+    text = getattr(message, 'text', None)
+    has_media = any([
+        getattr(message, 'photo', None),
+        getattr(message, 'document', None),
+        getattr(message, 'video', None),
+        getattr(message, 'audio', None),
+        getattr(message, 'sticker', None)
+    ])
+    has_sticker = bool(getattr(message, 'sticker', None))
+    return check_message_locks(chat_id, text, has_sticker=has_sticker, has_media=has_media)
 
 
 def clear_locks(chat_id: str) -> bool:

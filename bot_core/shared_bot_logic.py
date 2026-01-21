@@ -71,7 +71,7 @@ class SharedBotLogic:
 
         backend = settings['backend']
         api_key = settings['api_key']
-        threshold_value = settings['threshold'] / 100.0
+        threshold_value = settings['threshold'] if settings['threshold'] <= 1 else settings['threshold'] / 100.0
         action = settings['action']
 
         moderator = ContentModerator(backend=backend, api_key=api_key)
@@ -753,23 +753,13 @@ class SharedBotLogic:
         result = moderator.check_message(test_text, thresholds)
 
         backend_emoji = {
-            'perspective': '🌍',
-            'openai': '🤖',
-            'azure': '☁️',
-            'detoxify': '💻'
+            'openai': '🤖'
         }
 
         msg = get_text(chat_id, 'aitest_header')
         msg += get_text(chat_id, 'aitest_backend', emoji=backend_emoji.get(requested_backend, '❓'), backend=requested_backend)
         if used_backend != requested_backend:
-            import os
-            missing_key = requested_backend in ['perspective', 'openai', 'azure'] and not (
-                settings.get('api_key') or os.getenv(f'{requested_backend.upper()}_API_KEY')
-            )
-            if missing_key:
-                msg += get_text(chat_id, 'aitest_backend_used_missing_key', emoji=backend_emoji.get(used_backend, '❓'), backend=used_backend)
-            else:
-                msg += get_text(chat_id, 'aitest_backend_used_fallback', emoji=backend_emoji.get(used_backend, '❓'), backend=used_backend)
+            msg += get_text(chat_id, 'aitest_backend_used_fallback', emoji=backend_emoji.get(used_backend, '❓'), backend=used_backend)
         msg += "\n"
         msg += get_text(chat_id, 'aitest_text', text=f"{test_text[:100]}{'...' if len(test_text) > 100 else ''}")
         msg += get_text(chat_id, 'aitest_scores')
@@ -807,16 +797,10 @@ class SharedBotLogic:
             msg = get_text(chat_id, 'aimod_status_disabled')
         else:
             backend_emoji = {
-                'perspective': '🌍',
-                'openai': '🤖',
-                'azure': '☁️',
-                'detoxify': '💻'
+                'openai': '🤖'
             }
             backend_name = {
-                'perspective': 'Google Perspective (Hebrew+English)',
-                'openai': 'OpenAI (English)',
-                'azure': 'Azure (Hebrew+English)',
-                'detoxify': 'Detoxify (Multilingual - Hebrew+English)'
+                'openai': 'OpenAI'
             }
 
             action = settings['action']
@@ -867,18 +851,14 @@ class SharedBotLogic:
         backend = parts[0].lower()
         api_key = parts[1]
 
-        valid_backends = ['perspective', 'openai', 'azure', 'detoxify']
+        valid_backends = ['openai']
         if backend not in valid_backends:
             self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_invalid_backend', backends=', '.join(valid_backends)))
             return
 
-        if backend in ['detoxify']:
-            set_ai_backend(chat_id, backend)
-            self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_backend_set_no_key', backend=backend))
-        else:
-            set_ai_backend(chat_id, backend)
-            set_ai_api_key(chat_id, api_key)
-            self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_key_saved', backend=backend))
+        set_ai_backend(chat_id, backend)
+        set_ai_api_key(chat_id, api_key)
+        self.actions.send_message(chat_id, get_text(chat_id, 'aimodkey_key_saved', backend=backend))
 
     def cmd_aimodbackend(self, chat_id: str, backend: str):
         if not backend:
@@ -886,7 +866,7 @@ class SharedBotLogic:
             return
 
         backend = backend.lower()
-        valid_backends = ['perspective', 'openai', 'azure', 'detoxify']
+        valid_backends = ['openai']
 
         if backend not in valid_backends:
             self.actions.send_message(chat_id, get_text(chat_id, 'aimodbackend_invalid_backend', backends=', '.join(valid_backends)))
@@ -894,20 +874,19 @@ class SharedBotLogic:
 
         settings = get_ai_settings(chat_id)
 
-        if backend in ['perspective', 'openai', 'azure']:
-            if not settings['api_key']:
-                import os
-                if not os.getenv(f'{backend.upper()}_API_KEY'):
-                    self.actions.send_message(
+        if backend == 'openai' and not settings['api_key']:
+            import os
+            if not os.getenv('OPENAI_API_KEY'):
+                self.actions.send_message(
+                    chat_id,
+                    get_text(
                         chat_id,
-                        get_text(
-                            chat_id,
-                            'aimodbackend_missing_key',
-                            backend=backend,
-                            env_var=f"{backend.upper()}_API_KEY"
-                        )
+                        'aimodbackend_missing_key',
+                        backend=backend,
+                        env_var='OPENAI_API_KEY'
                     )
-                    return
+                )
+                return
 
         set_ai_backend(chat_id, backend)
         self.actions.send_message(chat_id, get_text(chat_id, 'aimodbackend_set', backend=backend))

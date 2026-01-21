@@ -30,7 +30,7 @@ def get_welcome_message(chat_id: str) -> Optional[str]:
         session.close()
 
 
-def set_welcome_message(chat_id: str, message: str) -> None:
+def set_welcome_message(chat_id: str, message: str) -> bool:
     """
     Set welcome message for a chat
     
@@ -49,6 +49,7 @@ def set_welcome_message(chat_id: str, message: str) -> None:
         session.commit()
         
         logger.info(f"✅ Welcome message updated for {chat_id}")
+        return True
     finally:
         session.close()
 
@@ -76,7 +77,7 @@ def clear_welcome_message(chat_id: str) -> bool:
         session.close()
 
 
-def format_welcome_message(message: str, user_name: str, mention: str) -> str:
+def format_welcome_message(message: str, user_name: str, mention: Optional[str] = None, chat_name: Optional[str] = None, user_id: Optional[str] = None) -> str:
     """
     Format welcome message with user placeholders
     
@@ -88,4 +89,20 @@ def format_welcome_message(message: str, user_name: str, mention: str) -> str:
     Returns:
         Formatted message
     """
-    return message.replace('{mention}', mention).replace('{user}', user_name)
+    mention_value = mention or user_name
+    formatted = message.replace('{mention}', mention_value).replace('{user}', user_name).replace('{name}', user_name)
+    if chat_name:
+        formatted = formatted.replace('{chat}', chat_name).replace('{group}', chat_name)
+    if user_id:
+        formatted = formatted.replace('{id}', user_id)
+    return formatted
+
+
+def get_welcome(chat_id: str) -> Optional[str]:
+    """Compatibility alias."""
+    return get_welcome_message(chat_id)
+
+
+def set_welcome(chat_id: str, message: str) -> bool:
+    """Compatibility alias."""
+    return set_welcome_message(chat_id, message)
