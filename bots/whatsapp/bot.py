@@ -57,6 +57,9 @@ class WhatsAppActions:
     def get_invite_link(self, chat_id: str):
         return self.client.get_invite_link(chat_id)
 
+    def get_group_members(self, chat_id: str):
+        return self.client.get_group_members(chat_id)
+
     def is_owner(self, user_id: str) -> bool:
         return user_id == self.owner_id
 

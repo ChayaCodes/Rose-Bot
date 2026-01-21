@@ -48,8 +48,66 @@ class SharedBotLogic:
         - is_admin(chat_id, user_id) -> bool
         - get_user_display(user_id) -> str
         - format_mention(user_id) -> str
+        Optional:
+        - get_group_members(chat_id) -> Optional[List[dict]]
         """
         self.actions = actions
+
+    def _normalize_phone_to_user_id(self, raw_phone: str) -> Optional[str]:
+        if not raw_phone:
+            return None
+
+        phone = raw_phone.strip()
+        if '@' in phone:
+            return phone
+
+        digits = re.sub(r'\D', '', phone)
+        if not digits:
+            return None
+
+        if digits.startswith('00'):
+            digits = digits[2:]
+
+        if digits.startswith('0') and len(digits) >= 9:
+            digits = '972' + digits[1:]
+
+        if len(digits) < 10:
+            return None
+
+        return f"{digits}@c.us"
+
+    def _extract_phone_and_rest(self, text: str) -> (Optional[str], str):
+        if not text:
+            return None, ''
+
+        match = re.search(r'\+?\d[\d\s().-]{6,}\d', text)
+        if not match:
+            return None, text.strip()
+
+        phone = match.group(0)
+        rest = (text[:match.start()] + text[match.end():]).strip()
+        return phone, rest
+
+    def _extract_phone_candidates(self, text: str) -> List[str]:
+        if not text:
+            return []
+        return [m.strip() for m in re.findall(r'\+?\d[\d\s().-]{6,}\d', text)]
+
+    def _resolve_user_from_args(self, chat_id: str, args: str) -> Optional[str]:
+        if not args:
+            return None
+
+        phone, _ = self._extract_phone_and_rest(args)
+        if not phone:
+            self.actions.send_message(chat_id, get_text(chat_id, 'invalid_phone', phone=args.strip()))
+            return None
+
+        user_id = self._normalize_phone_to_user_id(phone)
+        if not user_id:
+            self.actions.send_message(chat_id, get_text(chat_id, 'invalid_phone', phone=phone))
+            return None
+
+        return user_id
 
     def _check_locks(self, chat_id: str, message: dict) -> Optional[str]:
         locks = get_locks(chat_id)
@@ -227,12 +285,12 @@ class SharedBotLogic:
                 return
             self.cmd_warn(chat_id, from_id, args, message)
         elif command == 'warns':
-            self.cmd_warns(chat_id, from_id, message)
+            self.cmd_warns(chat_id, from_id, message, args)
         elif command == 'resetwarns':
             if not self.actions.is_admin(chat_id, from_id):
                 self.actions.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
-            self.cmd_resetwarns(chat_id, message)
+            self.cmd_resetwarns(chat_id, message, args)
         elif command == 'setwarn':
             if not self.actions.is_admin(chat_id, from_id):
                 self.actions.send_message(chat_id, get_text(chat_id, 'admin_only'))
@@ -243,17 +301,19 @@ class SharedBotLogic:
             if not self.actions.is_admin(chat_id, from_id):
                 self.actions.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
-            self.cmd_kick(chat_id, message)
+            self.cmd_kick(chat_id, message, args)
         elif command == 'ban':
             if not self.actions.is_admin(chat_id, from_id):
                 self.actions.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
-            self.cmd_ban(chat_id, message)
+            self.cmd_ban(chat_id, message, args)
         elif command == 'unban':
             if not self.actions.is_admin(chat_id, from_id):
                 self.actions.send_message(chat_id, get_text(chat_id, 'admin_only'))
                 return
             self.cmd_unban(chat_id, args)
+        elif command == 'role':
+            self.cmd_role(chat_id, message, args)
         elif command == 'add':
             if not self.actions.is_admin(chat_id, from_id):
                 self.actions.send_message(chat_id, get_text(chat_id, 'admin_only'))
@@ -434,11 +494,23 @@ class SharedBotLogic:
         quoted_msg = message.get('quotedMsg')
         quoted_participant = message.get('quotedParticipant')
 
-        if not quoted_msg or not quoted_participant:
-            self.actions.send_message(chat_id, get_text(chat_id, 'warn_usage'))
-            return
+        target_user = None
+        if quoted_msg and quoted_participant:
+            target_user = quoted_participant
+        else:
+            if not reason:
+                self.actions.send_message(chat_id, get_text(chat_id, 'warn_usage'))
+                return
+            phone, rest = self._extract_phone_and_rest(reason)
+            if not phone:
+                self.actions.send_message(chat_id, get_text(chat_id, 'warn_usage'))
+                return
+            target_user = self._normalize_phone_to_user_id(phone)
+            if not target_user:
+                self.actions.send_message(chat_id, get_text(chat_id, 'invalid_phone', phone=phone))
+                return
+            reason = rest
 
-        target_user = quoted_participant
         user_display = self.actions.get_user_display(target_user)
         reason = reason or get_text(chat_id, 'no_reason')
         count, limit = warn_user(chat_id, target_user, user_display, reason)
@@ -456,9 +528,17 @@ class SharedBotLogic:
             msg = get_text(chat_id, 'warn_issued', user=user_display, reason=reason, count=count, limit=limit)
             self.actions.send_message(chat_id, msg)
 
-    def cmd_warns(self, chat_id: str, user_id: str, message: dict):
+    def cmd_warns(self, chat_id: str, user_id: str, message: dict, args: str = ''):
         quoted_participant = message.get('quotedParticipant')
-        target_user = quoted_participant or user_id
+        target_user = quoted_participant
+
+        if not target_user and args:
+            target_user = self._resolve_user_from_args(chat_id, args)
+            if not target_user:
+                return
+
+        if not target_user:
+            target_user = user_id
 
         warns = get_warns(chat_id, target_user)
         limit, _ = get_warn_settings(chat_id)
@@ -475,15 +555,21 @@ class SharedBotLogic:
 
         self.actions.send_message(chat_id, msg)
 
-    def cmd_resetwarns(self, chat_id: str, message: dict):
+    def cmd_resetwarns(self, chat_id: str, message: dict, args: str = ''):
         quoted_participant = message.get('quotedParticipant')
+        target_user = quoted_participant
 
-        if not quoted_participant:
+        if not target_user and args:
+            target_user = self._resolve_user_from_args(chat_id, args)
+            if not target_user:
+                return
+
+        if not target_user:
             self.actions.send_message(chat_id, get_text(chat_id, 'resetwarns_usage'))
             return
 
-        reset_user_warns(chat_id, quoted_participant)
-        user_display = self.actions.get_user_display(quoted_participant)
+        reset_user_warns(chat_id, target_user)
+        user_display = self.actions.get_user_display(target_user)
         self.actions.send_message(chat_id, get_text(chat_id, 'warns_reset', user=user_display))
 
     def cmd_setwarn(self, chat_id: str, limit_str: str):
@@ -496,28 +582,49 @@ class SharedBotLogic:
         except Exception:
             self.actions.send_message(chat_id, get_text(chat_id, 'usage_setwarn'))
 
-    def cmd_kick(self, chat_id: str, message: dict):
+    def cmd_kick(self, chat_id: str, message: dict, args: str = ''):
         quoted_participant = message.get('quotedParticipant')
-        if not quoted_participant:
+        target_user = quoted_participant
+
+        if not target_user and args:
+            target_user = self._resolve_user_from_args(chat_id, args)
+            if not target_user:
+                return
+
+        if not target_user:
             self.actions.send_message(chat_id, get_text(chat_id, 'kick_usage'))
             return
 
-        user_display = self.actions.get_user_display(quoted_participant)
-        success = self.actions.remove_participant(chat_id, quoted_participant)
+        user_display = self.actions.get_user_display(target_user)
+        success = self.actions.remove_participant(chat_id, target_user)
         if success:
             self.actions.send_message(chat_id, get_text(chat_id, 'user_kicked', user=user_display))
         else:
             self.actions.send_message(chat_id, get_text(chat_id, 'kick_failed'))
 
-    def cmd_ban(self, chat_id: str, message: dict):
+    def cmd_ban(self, chat_id: str, message: dict, args: str = ''):
         quoted_participant = message.get('quotedParticipant')
-        if not quoted_participant:
+        target_user = quoted_participant
+        reason = None
+
+        if not target_user and args:
+            phone, rest = self._extract_phone_and_rest(args)
+            if not phone:
+                self.actions.send_message(chat_id, get_text(chat_id, 'ban_usage'))
+                return
+            target_user = self._normalize_phone_to_user_id(phone)
+            if not target_user:
+                self.actions.send_message(chat_id, get_text(chat_id, 'invalid_phone', phone=phone))
+                return
+            reason = rest or None
+
+        if not target_user:
             self.actions.send_message(chat_id, get_text(chat_id, 'ban_usage'))
             return
 
-        user_display = self.actions.get_user_display(quoted_participant)
-        add_ban(chat_id, quoted_participant)
-        success = self.actions.remove_participant(chat_id, quoted_participant)
+        user_display = self.actions.get_user_display(target_user)
+        add_ban(chat_id, target_user, user_display=user_display, reason=reason)
+        success = self.actions.remove_participant(chat_id, target_user)
         if success:
             self.actions.send_message(chat_id, get_text(chat_id, 'user_banned', user=user_display))
         else:
@@ -528,39 +635,78 @@ class SharedBotLogic:
             self.actions.send_message(chat_id, get_text(chat_id, 'unban_usage'))
             return
 
-        phone = phone.strip().replace('+', '').replace('-', '').replace(' ', '')
-        if not phone.isdigit() or len(phone) < 10:
+        user_id = self._normalize_phone_to_user_id(phone)
+        if not user_id:
             self.actions.send_message(chat_id, get_text(chat_id, 'invalid_phone', phone=phone))
             return
 
-        user_id = f"{phone}@c.us"
+        phone_display = user_id.split('@')[0]
         if remove_ban(chat_id, user_id):
-            self.actions.send_message(chat_id, get_text(chat_id, 'user_unbanned', user=phone))
+            self.actions.send_message(chat_id, get_text(chat_id, 'user_unbanned', user=phone_display))
         else:
             self.actions.send_message(chat_id, get_text(chat_id, 'user_not_banned'))
+
+    def cmd_role(self, chat_id: str, message: dict, args: str = ''):
+        quoted_participant = message.get('quotedParticipant')
+        target_user = quoted_participant
+
+        if not target_user and args:
+            target_user = self._resolve_user_from_args(chat_id, args)
+            if not target_user:
+                return
+
+        if not target_user:
+            self.actions.send_message(chat_id, get_text(chat_id, 'role_usage'))
+            return
+
+        user_display = self.actions.get_user_display(target_user)
+        is_admin = False
+        members = None
+        if hasattr(self.actions, 'get_group_members'):
+            try:
+                members = self.actions.get_group_members(chat_id)
+            except Exception:
+                members = None
+
+        if members is None:
+            self.actions.send_message(chat_id, get_text(chat_id, 'role_unknown', user=user_display))
+            return
+
+        for member in members:
+            member_id = member.get('id')
+            if isinstance(member_id, dict):
+                member_id = member_id.get('_serialized') or member_id.get('user')
+            if member_id == target_user:
+                is_admin = bool(member.get('isAdmin') or member.get('isSuperAdmin') or member.get('isSuperadmin'))
+                break
+
+        key = 'role_admin' if is_admin else 'role_member'
+        self.actions.send_message(chat_id, get_text(chat_id, key, user=user_display))
 
     def cmd_add(self, chat_id: str, phones: str):
         if not phones:
             self.actions.send_message(chat_id, get_text(chat_id, 'add_usage'))
             return
 
-        phone_list = [p.strip().replace('+', '').replace('-', '').replace(' ', '')
-                      for p in phones.replace(',', ' ').split()]
+        phone_list = self._extract_phone_candidates(phones)
+        if not phone_list:
+            self.actions.send_message(chat_id, get_text(chat_id, 'add_usage'))
+            return
 
         participants = []
+        display_numbers = []
         for phone in phone_list:
-            if phone.isdigit() and len(phone) >= 10:
-                if phone.startswith('0'):
-                    phone = '972' + phone[1:]
-                participants.append(f"{phone}@c.us")
-            else:
+            user_id = self._normalize_phone_to_user_id(phone)
+            if not user_id:
                 self.actions.send_message(chat_id, get_text(chat_id, 'invalid_phone', phone=phone))
                 return
+            participants.append(user_id)
+            display_numbers.append(user_id.split('@')[0])
 
         success = self.actions.add_participants(chat_id, participants)
         if success:
             if len(participants) == 1:
-                self.actions.send_message(chat_id, get_text(chat_id, 'user_added', user=phone_list[0]))
+                self.actions.send_message(chat_id, get_text(chat_id, 'user_added', user=display_numbers[0]))
             else:
                 self.actions.send_message(chat_id, get_text(chat_id, 'users_added', count=len(participants)))
         else:
