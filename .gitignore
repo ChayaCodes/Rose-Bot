@@ -74,3 +74,21 @@ temp/
 .env
 .env.local
 secrets/
+
+# Local development tools (not needed in production/Docker)
+tools/
+scripts/dev_watch.py
+
+# Pytest cache
+.pytest_cache/
+
+# Test databases
+test.db
+bot.db
+
+# Python cache
+*.pyc
+__pycache__/
+
+# Local requirements (production uses Docker)
+requirements-dev.txt

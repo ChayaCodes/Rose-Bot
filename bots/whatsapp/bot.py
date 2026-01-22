@@ -29,12 +29,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load configuration
+# Load configuration - prefer environment variables, fallback to config file
+class EnvConfig:
+    """Configuration from environment variables"""
+    OWNER_ID = os.getenv('OWNER_ID', '972534117164@c.us')
+    OWNER_NAME = os.getenv('OWNER_NAME', 'Owner')
+    SESSION_NAME = os.getenv('SESSION_NAME', 'rose-bot')
+    LOGGER = os.getenv('LOGGER', 'true').lower() == 'true'
+
+# Try to load from config file, fallback to env config
 try:
     from wa_config import Development as Config
+    logger.info("Loaded configuration from wa_config.py")
 except ImportError:
-    logger.error("Copy sample_wa_config.py to wa_config.py and configure it first!")
-    sys.exit(1)
+    Config = EnvConfig
+    logger.info("Using environment variables for configuration")
 
 
 class WhatsAppActions:
