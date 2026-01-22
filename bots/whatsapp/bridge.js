@@ -756,6 +756,21 @@ app.get('/group/:groupId/members', async (req, res) => {
             isAdmin: p.isAdmin,
             isSuperAdmin: p.isSuperAdmin
         }));
+
+        const participantIds = participants.map(p => p.id).filter(Boolean);
+        try {
+            if (participantIds.length > 0 && typeof client.getContactLidAndPhone === 'function') {
+                const mappings = await client.getContactLidAndPhone(participantIds);
+                if (Array.isArray(mappings) && mappings.length === participantIds.length) {
+                    mappings.forEach((entry, idx) => {
+                        participants[idx].lid = entry?.lid || null;
+                        participants[idx].phone = entry?.pn || null;
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to resolve LID/phone for participants:', e?.message || e);
+        }
         
         res.json({ participants });
     } catch (error) {
@@ -860,9 +875,212 @@ app.post('/group/:groupId/add', async (req, res) => {
             return res.status(400).json({ error: 'No valid WhatsApp numbers found' });
         }
         
-        const result = await chat.addParticipants(validParticipants);
+        // Check result codes
+        const checkResult = (addResult) => {
+            if (!addResult || typeof addResult !== 'object') {
+                return { success: false, reason: 'No result' };
+            }
+            
+            const results = [];
+            for (const [participantId, entry] of Object.entries(addResult)) {
+                const code = entry?.code ?? entry?.status;
+                const message = entry?.message || '';
+                const inviteSent = entry?.isInviteV4Sent === true;
+                
+                if (code === 200) {
+                    results.push({ participantId, success: true, added: true, code });
+                } else if (code === 403 && inviteSent) {
+                    results.push({ participantId, success: true, added: false, inviteSent: true, message, code });
+                } else if (code === 403) {
+                    results.push({ participantId, success: false, added: false, message: 'Privacy settings prevent direct add, invite required', code });
+                } else if (code === 409) {
+                    results.push({ participantId, success: true, added: true, message: 'Already in group', code });
+                } else {
+                    results.push({ participantId, success: false, added: false, code, message });
+                }
+            }
+            
+            const anySuccess = results.some(r => r.success);
+            const allAdded = results.every(r => r.added);
+            return { success: anySuccess, allAdded, results };
+        };
+
+        let result;
+        let lastError;
         
-        res.json({ success: true, result });
+        const sendInviteLinkPrivately = async (participantIds) => {
+            console.log('Getting invite code for group...');
+            const inviteCode = await chat.getInviteCode();
+            const inviteLink = `https://chat.whatsapp.com/${inviteCode}`;
+            console.log('Invite link:', inviteLink);
+            const sent = [];
+            const failed = [];
+            for (const participantId of participantIds) {
+                try {
+                    console.log(`Sending invite link to ${participantId}...`);
+                    
+                    // Extract phone number from participantId (remove @c.us)
+                    const phoneNumber = participantId.replace('@c.us', '');
+                    
+                    // First check if the number is registered on WhatsApp
+                    console.log(`Checking if ${phoneNumber} is registered on WhatsApp...`);
+                    const numberId = await client.getNumberId(phoneNumber);
+                    
+                    if (!numberId) {
+                        console.log(`${phoneNumber} is not registered on WhatsApp`);
+                        failed.push(participantId);
+                        continue;
+                    }
+                    
+                    console.log(`Number ${phoneNumber} is registered, ID: ${numberId._serialized}`);
+                    
+                    // Use the correct ID format from getNumberId
+                    const correctId = numberId._serialized;
+                    const message = `הוזמנת להצטרף לקבוצה:\n${inviteLink}`;
+                    
+                    // Try using getContactLidAndPhone to get the LID, then getChatById with LID
+                    try {
+                        console.log('Trying getContactLidAndPhone method...');
+                        const lidResults = await client.getContactLidAndPhone([correctId]);
+                        console.log('getContactLidAndPhone result:', JSON.stringify(lidResults));
+                        
+                        if (lidResults && lidResults.length > 0) {
+                            const lidResult = lidResults[0];
+                            const chatId = lidResult.lid || lidResult.pn || correctId;
+                            console.log(`Using chatId: ${chatId}`);
+                            
+                            const privateChat = await client.getChatById(chatId);
+                            if (privateChat) {
+                                await privateChat.sendMessage(message);
+                                console.log(`Successfully sent invite link to ${participantId} via LID method`);
+                                sent.push(participantId);
+                                continue;
+                            }
+                        }
+                        throw new Error('getContactLidAndPhone did not return usable results');
+                    } catch (lidErr) {
+                        console.log(`LID method failed: ${lidErr?.message}, trying direct sendMessage...`);
+                        
+                        // Fallback: try direct client.sendMessage
+                        try {
+                            await client.sendMessage(correctId, message);
+                            console.log(`Successfully sent invite link to ${participantId} via direct sendMessage`);
+                            sent.push(participantId);
+                        } catch (directErr) {
+                            console.log(`Direct sendMessage also failed: ${directErr?.message}`);
+                            failed.push(participantId);
+                        }
+                    }
+                } catch (sendErr) {
+                    console.log(`Failed to send invite to ${participantId}:`, sendErr?.message);
+                    failed.push(participantId);
+                }
+            }
+            return { inviteLink, sent, failed };
+        };
+
+        // Try with autoSendInviteV4: true - this sends private invite if user has privacy settings
+        try {
+            result = await chat.addParticipants(validParticipants, { autoSendInviteV4: true });
+            console.log('addParticipants result:', JSON.stringify(result));
+            
+            const checkRes = checkResult(result);
+            
+            if (checkRes.allAdded) {
+                return res.json({ success: true, message: 'Participants added to group', result: checkRes.results });
+            }
+
+            const privacyBlockedResults = checkRes.results.filter(r => r.code === 403 && !r.inviteSent);
+            if (privacyBlockedResults.length > 0) {
+                try {
+                    const inviteOutcome = await sendInviteLinkPrivately(privacyBlockedResults.map(r => r.participantId));
+                    return res.json({
+                        success: true,
+                        message: 'Privacy settings prevent direct add; sent invite link privately',
+                        inviteLinkSent: inviteOutcome.sent.length > 0,
+                        inviteLinkFailed: inviteOutcome.failed.length > 0,
+                        inviteLinkSentTo: inviteOutcome.sent,
+                        inviteLinkFailedTo: inviteOutcome.failed,
+                        result: checkRes.results
+                    });
+                } catch (inviteErr) {
+                    return res.json({
+                        success: true,
+                        message: 'Privacy settings prevent direct add; attempted to send invite link privately but failed',
+                        inviteLinkSent: false,
+                        inviteLinkFailed: true,
+                        details: inviteErr?.message,
+                        result: checkRes.results
+                    });
+                }
+            }
+
+            if (checkRes.success) {
+                const inviteSentList = checkRes.results.filter(r => r.inviteSent);
+                const addedList = checkRes.results.filter(r => r.added);
+                const failedList = checkRes.results.filter(r => !r.success);
+
+                if (inviteSentList.length > 0 && failedList.length === 0) {
+                    return res.json({
+                        success: true,
+                        message: 'Private invitation sent (user has privacy settings that prevent direct add)',
+                        inviteSent: true,
+                        result: checkRes.results
+                    });
+                }
+                if (addedList.length > 0) {
+                    return res.json({
+                        success: true,
+                        message: `Added ${addedList.length} participant(s)`,
+                        result: checkRes.results
+                    });
+                }
+            }
+            
+            // Check for specific error codes
+            const failedResults = checkRes.results.filter(r => !r.success);
+            if (failedResults.length > 0) {
+                const firstFail = failedResults[0];
+                return res.status(400).json({ 
+                    error: firstFail.message || 'Failed to add participant',
+                    code: firstFail.code,
+                    result: checkRes.results 
+                });
+            }
+        } catch (e) {
+            console.log('addParticipants failed:', e?.message);
+            lastError = e;
+            
+            // Check if it's a LID error - try to send invite link privately
+            if (e?.message?.includes('Lid is missing')) {
+                console.log('LID error detected, attempting to send invite link privately');
+                try {
+                    const inviteOutcome = await sendInviteLinkPrivately(validParticipants);
+                    return res.json({
+                        success: true,
+                        message: 'Cannot add directly (WhatsApp LID issue); sent invite link privately',
+                        inviteLinkSent: inviteOutcome.sent.length > 0,
+                        inviteLinkFailed: inviteOutcome.failed.length > 0,
+                        inviteLinkSentTo: inviteOutcome.sent,
+                        inviteLinkFailedTo: inviteOutcome.failed
+                    });
+                } catch (inviteErr) {
+                    console.log('Failed to send invite link:', inviteErr?.message);
+                    return res.json({
+                        success: true,
+                        message: 'Cannot add directly (WhatsApp LID issue); attempted to send invite link privately but failed',
+                        inviteLinkSent: false,
+                        inviteLinkFailed: true,
+                        details: inviteErr?.message
+                    });
+                }
+            }
+        }
+        
+        // All approaches failed
+        const errorMsg = lastError?.message || 'Failed to add participants';
+        console.error('Add participant failed:', errorMsg);
+        res.status(500).json({ error: errorMsg });
     } catch (error) {
         console.error('Error adding participants:', error);
         res.status(500).json({ error: error.message });

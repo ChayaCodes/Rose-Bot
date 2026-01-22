@@ -276,11 +276,35 @@ class WhatsAppBridgeClient:
     def add_participants(self, group_id: str, participants: list) -> bool:
         """Add participants to group"""
         try:
-            self._request('POST', f"/group/{group_id}/add", json={'participants': participants}, timeout=30)
-            return True
+            url = f"{self.bridge_url}/group/{group_id}/add"
+            response = requests.post(url, json={'participants': participants}, timeout=30)
+            if response.ok:
+                data = response.json()
+                # Check if invite was sent vs actual add
+                invite_sent = data.get('inviteSent', False)
+                invite_link_sent = data.get('inviteLinkSent', False)
+                invite_link_failed = data.get('inviteLinkFailed', False)
+                message = data.get('message', '')
+                result = data.get('result', [])
+                return {
+                    'success': True,
+                    'result': result,
+                    'inviteSent': invite_sent,
+                    'inviteLinkSent': invite_link_sent,
+                    'inviteLinkFailed': invite_link_failed,
+                    'message': message
+                }
+            error_message = None
+            try:
+                error_data = response.json()
+                error_message = error_data.get('error')
+            except Exception:
+                error_message = response.text
+            logger.error(f"Failed to add participants: {error_message}")
+            return {'success': False, 'error': error_message or 'Unknown error'}
         except Exception as e:
             logger.error(f"Failed to add participants: {e}")
-            return False
+            return {'success': False, 'error': str(e)}
     
     def get_invite_link(self, group_id: str) -> Optional[str]:
         """Get group invite link"""

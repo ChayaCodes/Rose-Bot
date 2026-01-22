@@ -93,6 +93,22 @@ class SharedBotLogic:
             return []
         return [m.strip() for m in re.findall(r'\+?\d[\d\s().-]{6,}\d', text)]
 
+    def _extract_digits_from_id(self, value: Optional[str]) -> str:
+        if not value:
+            return ''
+        if '@' in value:
+            value = value.split('@')[0]
+        return re.sub(r'\D', '', value)
+
+    def _expand_user_candidates(self, user_id: str) -> List[str]:
+        candidates = {user_id}
+        digits = self._extract_digits_from_id(user_id)
+        if digits:
+            candidates.add(f"{digits}@c.us")
+            candidates.add(f"{digits}@s.whatsapp.net")
+
+        return list(candidates)
+
     def _resolve_user_from_args(self, chat_id: str, args: str) -> Optional[str]:
         if not args:
             return None
@@ -672,13 +688,39 @@ class SharedBotLogic:
             self.actions.send_message(chat_id, get_text(chat_id, 'role_unknown', user=user_display))
             return
 
+        candidates = set(self._expand_user_candidates(target_user))
+        target_digits = self._extract_digits_from_id(target_user)
+        allow_digit_match = not target_user.endswith('@lid')
+        candidate_digits = set()
+        if allow_digit_match:
+            candidate_digits = {self._extract_digits_from_id(c) for c in candidates if self._extract_digits_from_id(c)}
+
         for member in members:
             member_id = member.get('id')
             if isinstance(member_id, dict):
                 member_id = member_id.get('_serialized') or member_id.get('user')
-            if member_id == target_user:
+            if not member_id:
+                continue
+            if member_id in candidates:
                 is_admin = bool(member.get('isAdmin') or member.get('isSuperAdmin') or member.get('isSuperadmin'))
+                logger.info("Role match by id", extra={"target": target_user, "member_id": member_id, "is_admin": is_admin})
                 break
+            member_lid = member.get('lid')
+            if member_lid and member_lid == target_user:
+                is_admin = bool(member.get('isAdmin') or member.get('isSuperAdmin') or member.get('isSuperadmin'))
+                logger.info("Role match by lid", extra={"target": target_user, "member_id": member_id, "is_admin": is_admin})
+                break
+            member_phone = member.get('phone')
+            if member_phone and target_digits and self._extract_digits_from_id(member_phone) == target_digits:
+                is_admin = bool(member.get('isAdmin') or member.get('isSuperAdmin') or member.get('isSuperadmin'))
+                logger.info("Role match by phone", extra={"target": target_user, "member_id": member_id, "is_admin": is_admin})
+                break
+            if allow_digit_match:
+                member_digits = self._extract_digits_from_id(member_id)
+                if member_digits and member_digits in candidate_digits:
+                    is_admin = bool(member.get('isAdmin') or member.get('isSuperAdmin') or member.get('isSuperadmin'))
+                    logger.info("Role match by digits", extra={"target": target_user, "member_id": member_id, "is_admin": is_admin})
+                    break
 
         key = 'role_admin' if is_admin else 'role_member'
         self.actions.send_message(chat_id, get_text(chat_id, key, user=user_display))
@@ -703,13 +745,36 @@ class SharedBotLogic:
             participants.append(user_id)
             display_numbers.append(user_id.split('@')[0])
 
-        success = self.actions.add_participants(chat_id, participants)
+        result = self.actions.add_participants(chat_id, participants)
+        success = result.get('success') if isinstance(result, dict) else bool(result)
         if success:
-            if len(participants) == 1:
+            # Check for invite sent
+            invite_sent = False
+            invite_link_sent = False
+            invite_link_failed = False
+            if isinstance(result, dict):
+                invite_sent = result.get('inviteSent', False)
+                invite_link_sent = result.get('inviteLinkSent', False)
+                invite_link_failed = result.get('inviteLinkFailed', False)
+                # Also check nested result array
+                data = result.get('result') or []
+                if not invite_sent and isinstance(data, list):
+                    invite_sent = any(r.get('inviteSent') for r in data if isinstance(r, dict))
+
+            if invite_link_failed:
+                self.actions.send_message(chat_id, get_text(chat_id, 'invite_private_failed', user=display_numbers[0]))
+            elif invite_link_sent:
+                self.actions.send_message(chat_id, get_text(chat_id, 'invite_sent_private_link', user=display_numbers[0]))
+            elif invite_sent:
+                self.actions.send_message(chat_id, get_text(chat_id, 'invite_sent_private', user=display_numbers[0]))
+            elif len(participants) == 1:
                 self.actions.send_message(chat_id, get_text(chat_id, 'user_added', user=display_numbers[0]))
             else:
                 self.actions.send_message(chat_id, get_text(chat_id, 'users_added', count=len(participants)))
         else:
+            error = result.get('error') if isinstance(result, dict) else None
+            if error:
+                logger.error("Failed to add participants", extra={"chat_id": chat_id, "phones": phones, "error": error})
             self.actions.send_message(chat_id, get_text(chat_id, 'user_add_failed', user=phones))
 
     def cmd_invite(self, chat_id: str):

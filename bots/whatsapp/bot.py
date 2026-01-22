@@ -54,6 +54,9 @@ class WhatsAppActions:
     def add_participants(self, chat_id: str, participants):
         return self.client.add_participants(chat_id, participants)
 
+    def get_contact(self, contact_id: str):
+        return self.client.get_contact(contact_id)
+
     def get_invite_link(self, chat_id: str):
         return self.client.get_invite_link(chat_id)
 
