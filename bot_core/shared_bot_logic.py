@@ -1190,7 +1190,11 @@ class SharedBotLogic:
 
             for participant_id in participants:
                 message = welcome_msg.replace('{mention}', self.actions.format_mention(participant_id))
-                self.actions.send_message(chat_id, message)
+                # Use mentions for proper @tagging if the method exists
+                if hasattr(self.actions, 'send_message_with_mentions'):
+                    self.actions.send_message_with_mentions(chat_id, message, [participant_id])
+                else:
+                    self.actions.send_message(chat_id, message)
                 logger.info(f"Sent welcome message to {participant_id}")
         except Exception as e:
             logger.error(f"Error handling group join: {e}")

@@ -117,6 +117,19 @@ class WhatsAppBridgeClient:
         except Exception as e:
             logger.error(f"Failed to send message: {e}")
             return None
+
+    def send_mention(self, chat_id: str, message: str, mention_ids: list) -> Optional[str]:
+        """Send a text message with mentions (proper @tagging)"""
+        try:
+            result = self._request('POST', '/send-mention', json={
+                'chatId': chat_id,
+                'message': message,
+                'mentionIds': mention_ids
+            }, timeout=10)
+            return result.get('messageId')
+        except Exception as e:
+            logger.error(f"Failed to send mention message: {e}")
+            return None
     
     def delete_message(self, chat_id: str, message_id: str) -> bool:
         """Delete a message for everyone"""

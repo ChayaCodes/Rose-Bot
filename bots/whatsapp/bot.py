@@ -45,6 +45,10 @@ class WhatsAppActions:
     def send_message(self, chat_id: str, text: str):
         return self.client.send_message(chat_id, text)
 
+    def send_message_with_mentions(self, chat_id: str, text: str, mention_ids: list):
+        """Send a message with proper @mentions that tag users."""
+        return self.client.send_mention(chat_id, text, mention_ids)
+
     def delete_message(self, chat_id: str, message_id: str):
         return self.client.delete_message(chat_id, message_id)
 
@@ -143,11 +147,74 @@ class WhatsAppActions:
         role = self.get_participant_role(chat_id, user_id)
         return role in ('bot_owner', 'superadmin')
 
+    def get_user_name(self, user_id: str) -> str:
+        """Get user's name (pushname/name) if available, otherwise empty string."""
+        if not user_id:
+            return ""
+        
+        try:
+            contact = self.client.get_contact(user_id)
+            if contact:
+                name = contact.get('pushname') or contact.get('name') or contact.get('shortName')
+                if name and name.strip():
+                    return name.strip()
+        except Exception as e:
+            logger.debug(f"Failed to get contact name for {user_id}: {e}")
+        
+        return ""
+
+    def get_user_phone(self, user_id: str) -> str:
+        """Get user's phone number. Resolves LID to phone if needed."""
+        if not user_id:
+            return ""
+        
+        try:
+            contact = self.client.get_contact(user_id)
+            if contact:
+                # If LID was resolved to phone number
+                phone_number = contact.get('phoneNumber')
+                if phone_number:
+                    phone = phone_number.split('@')[0]
+                    if phone.isdigit() and len(phone) > 6:
+                        return f"+{phone}"
+                    return phone
+        except Exception as e:
+            logger.debug(f"Failed to get phone for {user_id}: {e}")
+        
+        # Fallback to user_id itself if it's a phone format
+        phone = user_id.split('@')[0] if '@' in user_id else user_id
+        if phone.isdigit() and len(phone) > 6 and not user_id.endswith('@lid'):
+            return f"+{phone}"
+        
+        return ""
+
     def get_user_display(self, user_id: str) -> str:
-        return user_id.split('@')[0] if user_id else ""
+        """Get user's display - prefers name, falls back to phone."""
+        name = self.get_user_name(user_id)
+        if name:
+            return name
+        
+        phone = self.get_user_phone(user_id)
+        if phone:
+            return phone
+        
+        # Last resort for unresolved LID
+        if user_id.endswith('@lid'):
+            return "משתמש"  # "User" in Hebrew
+        
+        return user_id.split('@')[0] if '@' in user_id else user_id
 
     def format_mention(self, user_id: str) -> str:
-        return f"@{self.get_user_display(user_id)}"
+        """Format a mention - always uses phone number for tagging."""
+        phone = self.get_user_phone(user_id)
+        if phone:
+            return f"@{phone}"
+        
+        # Fallback if phone not available
+        if user_id.endswith('@lid'):
+            return "@משתמש"
+        
+        return f"@{user_id.split('@')[0] if '@' in user_id else user_id}"
 
 
 class WhatsAppBot:

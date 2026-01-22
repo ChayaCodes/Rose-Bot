@@ -640,7 +640,7 @@ app.get('/message/:messageId/media', async (req, res) => {
     }
 });
 
-// Get contact by ID
+// Get contact by ID (with LID to phone resolution)
 app.get('/contact/:contactId', async (req, res) => {
     try {
         const { contactId } = req.params;
@@ -649,12 +649,46 @@ app.get('/contact/:contactId', async (req, res) => {
             return res.status(503).json({ error: 'Client not ready' });
         }
 
-        const contact = await client.getContactById(contactId);
-        if (!contact) {
-            return res.status(404).json({ error: 'Contact not found' });
+        let contact = null;
+        let phoneNumber = null;
+        let lid = null;
+
+        // Try to get contact info
+        try {
+            contact = await client.getContactById(contactId);
+        } catch (e) {
+            console.log('getContactById failed:', e?.message);
         }
 
-        res.json({ success: true, contact: serializeResult(contact) });
+        // If contactId is a LID, try to resolve to phone number
+        if (contactId.endsWith('@lid')) {
+            try {
+                const mappings = await client.getContactLidAndPhone([contactId]);
+                if (mappings && mappings.length > 0 && mappings[0].pn) {
+                    phoneNumber = mappings[0].pn;
+                    lid = mappings[0].lid || contactId;
+                    
+                    // Try to get contact by phone number for more info
+                    if (!contact && phoneNumber) {
+                        try {
+                            contact = await client.getContactById(phoneNumber);
+                        } catch (e) {
+                            console.log('getContactById by phone failed:', e?.message);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('getContactLidAndPhone failed:', e?.message);
+            }
+        }
+
+        // Build response with all available info
+        const result = contact ? serializeResult(contact) : {};
+        result.phoneNumber = phoneNumber || (contactId.endsWith('@c.us') ? contactId : null);
+        result.lid = lid || (contactId.endsWith('@lid') ? contactId : null);
+        result.originalId = contactId;
+
+        res.json({ success: true, contact: result });
     } catch (error) {
         console.error('Error getting contact:', error);
         res.status(500).json({ error: error.message });
