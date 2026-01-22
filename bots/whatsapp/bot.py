@@ -63,15 +63,85 @@ class WhatsAppActions:
     def get_group_members(self, chat_id: str):
         return self.client.get_group_members(chat_id)
 
-    def is_owner(self, user_id: str) -> bool:
+    def is_bot_owner(self, user_id: str) -> bool:
+        """Check if user is the bot owner (from config)."""
         return user_id == self.owner_id
 
+    def is_owner(self, chat_id: str, user_id: str) -> bool:
+        """Check if user is the owner of the group (superadmin/creator)."""
+        role = self.get_participant_role(chat_id, user_id)
+        return role == 'superadmin' or self.is_bot_owner(user_id)
+
+    def get_participant_role(self, chat_id: str, user_id: str) -> str:
+        """Get participant's role in a group.
+        
+        Returns:
+            'owner' - Bot owner
+            'superadmin' - Group creator
+            'admin' - Group admin
+            'member' - Regular member
+            'unknown' - Could not determine role
+        """
+        if self.is_bot_owner(user_id):
+            return 'bot_owner'
+        
+        if not chat_id.endswith('@g.us'):
+            return 'member'  # Not a group, no special roles
+        
+        members = self.get_group_members(chat_id)
+        if not members:
+            logger.warning(f"Could not get members for {chat_id}")
+            return 'unknown'
+        
+        # Extract the identifier part (before @)
+        user_identifier = user_id.split('@')[0] if user_id else ''
+        is_lid_format = user_id.endswith('@lid')
+        
+        for member in members:
+            member_id = member.get('id', '')
+            member_identifier = member_id.split('@')[0] if member_id else ''
+            member_lid = member.get('lid', '')
+            member_lid_identifier = member_lid.split('@')[0] if member_lid else ''
+            member_phone = member.get('phone', '')
+            member_phone_identifier = member_phone.split('@')[0] if member_phone else ''
+            
+            # Check all possible matches:
+            # 1. Direct ID match
+            # 2. LID to LID match
+            # 3. Phone to phone match
+            # 4. User LID matches member's resolved LID
+            matched = False
+            
+            if user_identifier == member_identifier:
+                matched = True
+            elif is_lid_format and member_lid_identifier and user_identifier == member_lid_identifier:
+                matched = True
+            elif not is_lid_format and member_phone_identifier and user_identifier == member_phone_identifier:
+                matched = True
+            elif is_lid_format and member_id.endswith('@lid') and user_identifier == member_identifier:
+                matched = True
+            
+            if matched:
+                is_super = member.get('isSuperAdmin', False)
+                is_admin = member.get('isAdmin', False)
+                if is_super:
+                    return 'superadmin'
+                if is_admin:
+                    return 'admin'
+                return 'member'
+        
+        logger.warning(f"User {user_id} not found in group members")
+        return 'unknown'
+
     def is_admin(self, chat_id: str, user_id: str) -> bool:
-        if self.is_owner(user_id):
-            return True
-        if chat_id.endswith('@g.us'):
-            return True
-        return False
+        """Check if user is an admin (or higher) in the chat."""
+        role = self.get_participant_role(chat_id, user_id)
+        return role in ('bot_owner', 'superadmin', 'admin')
+
+    def is_superadmin(self, chat_id: str, user_id: str) -> bool:
+        """Check if user is the group creator (superadmin)."""
+        role = self.get_participant_role(chat_id, user_id)
+        return role in ('bot_owner', 'superadmin')
 
     def get_user_display(self, user_id: str) -> str:
         return user_id.split('@')[0] if user_id else ""

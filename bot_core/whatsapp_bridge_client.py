@@ -273,6 +273,62 @@ class WhatsAppBridgeClient:
             logger.error(f"Failed to demote participant: {e}")
             return False
     
+    def get_membership_requests(self, group_id: str) -> Optional[list]:
+        """Get pending membership requests for a group.
+        
+        Returns list of requests, each with:
+        - id: User ID who requested to join
+        - addedBy: Who created the request
+        - requestMethod: How they requested (NonAdminAdd/InviteLink/LinkedGroupJoin)
+        - timestamp: When the request was created
+        """
+        try:
+            result = self._request('GET', f"/group/{group_id}/membership-requests", timeout=10)
+            return result.get('requests', [])
+        except Exception as e:
+            logger.error(f"Failed to get membership requests: {e}")
+            return None
+    
+    def approve_membership_requests(self, group_id: str, requester_ids: list = None) -> dict:
+        """Approve membership requests.
+        
+        Args:
+            group_id: Group ID
+            requester_ids: List of user IDs to approve. If None, approves all pending requests.
+            
+        Returns:
+            Dict with results for each request.
+        """
+        try:
+            data = {}
+            if requester_ids:
+                data['requesterIds'] = requester_ids
+            result = self._request('POST', f"/group/{group_id}/membership-requests/approve", json=data, timeout=15)
+            return {'success': True, 'results': result.get('results', [])}
+        except Exception as e:
+            logger.error(f"Failed to approve membership requests: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def reject_membership_requests(self, group_id: str, requester_ids: list = None) -> dict:
+        """Reject membership requests.
+        
+        Args:
+            group_id: Group ID
+            requester_ids: List of user IDs to reject. If None, rejects all pending requests.
+            
+        Returns:
+            Dict with results for each request.
+        """
+        try:
+            data = {}
+            if requester_ids:
+                data['requesterIds'] = requester_ids
+            result = self._request('POST', f"/group/{group_id}/membership-requests/reject", json=data, timeout=15)
+            return {'success': True, 'results': result.get('results', [])}
+        except Exception as e:
+            logger.error(f"Failed to reject membership requests: {e}")
+            return {'success': False, 'error': str(e)}
+    
     def add_participants(self, group_id: str, participants: list) -> bool:
         """Add participants to group"""
         try:

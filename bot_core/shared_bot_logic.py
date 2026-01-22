@@ -44,8 +44,8 @@ class SharedBotLogic:
         - remove_participant(chat_id, user_id) -> bool
         - add_participants(chat_id, participants: List[str]) -> bool
         - get_invite_link(chat_id) -> Optional[str]
-        - is_owner(user_id) -> bool
-        - is_admin(chat_id, user_id) -> bool
+        - is_owner(chat_id, user_id) -> bool  # Group owner/creator
+        - is_admin(chat_id, user_id) -> bool  # Group admin or higher
         - get_user_display(user_id) -> str
         - format_mention(user_id) -> str
         Optional:
@@ -281,7 +281,7 @@ class SharedBotLogic:
         if command == 'start':
             self.cmd_start(chat_id)
         elif command == 'help':
-            self.cmd_help(chat_id, from_id, self.actions.is_owner(from_id), args)
+            self.cmd_help(chat_id, from_id, self.actions.is_admin(chat_id, from_id), args)
         elif command == 'info':
             self.cmd_info(chat_id, from_id)
         elif command == 'ping':
@@ -431,9 +431,8 @@ class SharedBotLogic:
     def cmd_start(self, chat_id: str):
         self.actions.send_message(chat_id, get_text(chat_id, 'start_msg'))
 
-    def cmd_help(self, chat_id: str, from_id: str, is_owner: bool, args: str = ''):
+    def cmd_help(self, chat_id: str, from_id: str, is_admin_user: bool, args: str = ''):
         lang = get_chat_lang(chat_id)
-        is_admin_user = self.actions.is_admin(chat_id, from_id) or is_owner
 
         if args:
             cmd_name = args.lower().strip().lstrip('/')
@@ -703,23 +702,19 @@ class SharedBotLogic:
                 continue
             if member_id in candidates:
                 is_admin = bool(member.get('isAdmin') or member.get('isSuperAdmin') or member.get('isSuperadmin'))
-                logger.info("Role match by id", extra={"target": target_user, "member_id": member_id, "is_admin": is_admin})
                 break
             member_lid = member.get('lid')
             if member_lid and member_lid == target_user:
                 is_admin = bool(member.get('isAdmin') or member.get('isSuperAdmin') or member.get('isSuperadmin'))
-                logger.info("Role match by lid", extra={"target": target_user, "member_id": member_id, "is_admin": is_admin})
                 break
             member_phone = member.get('phone')
             if member_phone and target_digits and self._extract_digits_from_id(member_phone) == target_digits:
                 is_admin = bool(member.get('isAdmin') or member.get('isSuperAdmin') or member.get('isSuperadmin'))
-                logger.info("Role match by phone", extra={"target": target_user, "member_id": member_id, "is_admin": is_admin})
                 break
             if allow_digit_match:
                 member_digits = self._extract_digits_from_id(member_id)
                 if member_digits and member_digits in candidate_digits:
                     is_admin = bool(member.get('isAdmin') or member.get('isSuperAdmin') or member.get('isSuperadmin'))
-                    logger.info("Role match by digits", extra={"target": target_user, "member_id": member_id, "is_admin": is_admin})
                     break
 
         key = 'role_admin' if is_admin else 'role_member'

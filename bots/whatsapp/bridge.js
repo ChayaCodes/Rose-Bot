@@ -893,6 +893,16 @@ app.post('/group/:groupId/add', async (req, res) => {
                     results.push({ participantId, success: true, added: false, inviteSent: true, message, code });
                 } else if (code === 403) {
                     results.push({ participantId, success: false, added: false, message: 'Privacy settings prevent direct add, invite required', code });
+                } else if (code === 408) {
+                    // Error 408: Recently left/removed - cannot be added or join via invite link
+                    results.push({ 
+                        participantId, 
+                        success: false, 
+                        added: false, 
+                        recentlyRemoved: true, 
+                        message: 'Cannot add - user was recently removed from this group. They must wait before rejoining.', 
+                        code 
+                    });
                 } else if (code === 409) {
                     results.push({ participantId, success: true, added: true, message: 'Already in group', code });
                 } else {
@@ -902,7 +912,8 @@ app.post('/group/:groupId/add', async (req, res) => {
             
             const anySuccess = results.some(r => r.success);
             const allAdded = results.every(r => r.added);
-            return { success: anySuccess, allAdded, results };
+            const hasRecentlyRemoved = results.some(r => r.recentlyRemoved);
+            return { success: anySuccess, allAdded, hasRecentlyRemoved, results };
         };
 
         let result;
@@ -938,36 +949,85 @@ app.post('/group/:groupId/add', async (req, res) => {
                     const correctId = numberId._serialized;
                     const message = `הוזמנת להצטרף לקבוצה:\n${inviteLink}`;
                     
-                    // Try using getContactLidAndPhone to get the LID, then getChatById with LID
+                    // SOLUTION: First save the contact temporarily to the addressbook
+                    // This triggers WhatsApp to properly associate the LID with the phone number
                     try {
-                        console.log('Trying getContactLidAndPhone method...');
-                        const lidResults = await client.getContactLidAndPhone([correctId]);
-                        console.log('getContactLidAndPhone result:', JSON.stringify(lidResults));
-                        
-                        if (lidResults && lidResults.length > 0) {
-                            const lidResult = lidResults[0];
-                            const chatId = lidResult.lid || lidResult.pn || correctId;
-                            console.log(`Using chatId: ${chatId}`);
-                            
-                            const privateChat = await client.getChatById(chatId);
-                            if (privateChat) {
-                                await privateChat.sendMessage(message);
-                                console.log(`Successfully sent invite link to ${participantId} via LID method`);
-                                sent.push(participantId);
-                                continue;
+                        console.log(`Saving contact ${phoneNumber} to addressbook temporarily...`);
+                        await client.saveOrEditAddressbookContact(phoneNumber, 'Invite', 'User', false);
+                        console.log('Contact saved to addressbook');
+                    } catch (saveErr) {
+                        console.log(`Could not save contact (may already exist): ${saveErr?.message}`);
+                    }
+
+                    // Now use pupPage.evaluate to properly find/create the chat and send the message
+                    try {
+                        console.log('Sending message via Store.Chat.find...');
+                        const result = await client.pupPage.evaluate(async (chatId, messageText) => {
+                            try {
+                                const wid = window.Store.WidFactory.createWid(chatId);
+                                
+                                // Find or create the chat - this is the key method that WhatsApp uses internally
+                                let chat = window.Store.Chat.get(wid);
+                                if (!chat) {
+                                    chat = await window.Store.Chat.find(wid);
+                                }
+                                
+                                if (!chat) {
+                                    return { success: false, error: 'Could not find or create chat' };
+                                }
+                                
+                                // Send message using the internal method
+                                await window.WWebJS.sendMessage(chat, messageText, {});
+                                return { success: true };
+                            } catch (err) {
+                                return { success: false, error: err.message || String(err) };
                             }
-                        }
-                        throw new Error('getContactLidAndPhone did not return usable results');
-                    } catch (lidErr) {
-                        console.log(`LID method failed: ${lidErr?.message}, trying direct sendMessage...`);
+                        }, correctId, message);
                         
-                        // Fallback: try direct client.sendMessage
-                        try {
-                            await client.sendMessage(correctId, message);
-                            console.log(`Successfully sent invite link to ${participantId} via direct sendMessage`);
+                        if (result.success) {
+                            console.log(`Successfully sent invite link to ${participantId}`);
                             sent.push(participantId);
-                        } catch (directErr) {
-                            console.log(`Direct sendMessage also failed: ${directErr?.message}`);
+                            continue;
+                        } else {
+                            throw new Error(result.error || 'Unknown error');
+                        }
+                    } catch (sendErr) {
+                        console.log(`Store.Chat.find method failed: ${sendErr?.message}`);
+                        
+                        // Last resort: try with the LID directly
+                        try {
+                            console.log('Trying with LID...');
+                            const lidResults = await client.getContactLidAndPhone([correctId]);
+                            if (lidResults && lidResults.length > 0 && lidResults[0].lid) {
+                                const lid = lidResults[0].lid;
+                                console.log(`Got LID: ${lid}, trying to send via LID...`);
+                                
+                                const lidResult = await client.pupPage.evaluate(async (lidId, messageText) => {
+                                    try {
+                                        const wid = window.Store.WidFactory.createWid(lidId);
+                                        let chat = window.Store.Chat.get(wid);
+                                        if (!chat) {
+                                            chat = await window.Store.Chat.find(wid);
+                                        }
+                                        if (chat) {
+                                            await window.WWebJS.sendMessage(chat, messageText, {});
+                                            return { success: true };
+                                        }
+                                        return { success: false, error: 'No chat found' };
+                                    } catch (err) {
+                                        return { success: false, error: err.message || String(err) };
+                                    }
+                                }, lid, message);
+                                
+                                if (lidResult.success) {
+                                    console.log(`Successfully sent invite link to ${participantId} via LID`);
+                                    sent.push(participantId);
+                                    continue;
+                                }
+                            }
+                            throw new Error('LID method also failed');
+                        } catch (lidErr) {
+                            console.log(`All methods failed: ${lidErr?.message}`);
                             failed.push(participantId);
                         }
                     }
@@ -1013,6 +1073,19 @@ app.post('/group/:groupId/add', async (req, res) => {
                         result: checkRes.results
                     });
                 }
+            }
+
+            // Check for recently removed users (code 408)
+            // These users cannot be added directly or via invite link - they must wait
+            const recentlyRemovedResults = checkRes.results.filter(r => r.code === 408);
+            if (recentlyRemovedResults.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Cannot add user - they were recently removed from this group',
+                    recentlyRemoved: true,
+                    message: 'המשתמש הורחק לאחרונה מהקבוצה. הוא לא יכול להצטרף מחדש עד שתעבור תקופת ההמתנה של וואטסאפ (בדרך כלל כמה שעות עד יום).',
+                    result: checkRes.results
+                });
             }
 
             if (checkRes.success) {
@@ -1083,6 +1156,99 @@ app.post('/group/:groupId/add', async (req, res) => {
         res.status(500).json({ error: errorMsg });
     } catch (error) {
         console.error('Error adding participants:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get pending membership requests for a group
+app.get('/group/:groupId/membership-requests', async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+        
+        const chat = await client.getChatById(groupId);
+        
+        if (!chat.isGroup) {
+            return res.status(400).json({ error: 'Not a group' });
+        }
+        
+        const requests = await chat.getGroupMembershipRequests();
+        
+        res.json({ 
+            success: true,
+            requests: requests.map(r => ({
+                id: r.id?._serialized || r.id,
+                addedBy: r.addedBy?._serialized || r.addedBy,
+                parentGroupId: r.parentGroupId?._serialized || r.parentGroupId,
+                requestMethod: r.requestMethod,
+                timestamp: r.t
+            }))
+        });
+    } catch (error) {
+        console.error('Error getting membership requests:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Approve membership requests
+app.post('/group/:groupId/membership-requests/approve', async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const { requesterIds } = req.body;  // Array of user IDs or single user ID
+        
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+        
+        const chat = await client.getChatById(groupId);
+        
+        if (!chat.isGroup) {
+            return res.status(400).json({ error: 'Not a group' });
+        }
+        
+        const options = requesterIds ? { requesterIds: Array.isArray(requesterIds) ? requesterIds : [requesterIds] } : {};
+        const results = await chat.approveGroupMembershipRequests(options);
+        
+        res.json({ 
+            success: true,
+            message: 'Approved membership requests',
+            results
+        });
+    } catch (error) {
+        console.error('Error approving membership requests:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Reject membership requests
+app.post('/group/:groupId/membership-requests/reject', async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const { requesterIds } = req.body;  // Array of user IDs or single user ID
+        
+        if (!isReady) {
+            return res.status(503).json({ error: 'Client not ready' });
+        }
+        
+        const chat = await client.getChatById(groupId);
+        
+        if (!chat.isGroup) {
+            return res.status(400).json({ error: 'Not a group' });
+        }
+        
+        const options = requesterIds ? { requesterIds: Array.isArray(requesterIds) ? requesterIds : [requesterIds] } : {};
+        const results = await chat.rejectGroupMembershipRequests(options);
+        
+        res.json({ 
+            success: true,
+            message: 'Rejected membership requests',
+            results
+        });
+    } catch (error) {
+        console.error('Error rejecting membership requests:', error);
         res.status(500).json({ error: error.message });
     }
 });
