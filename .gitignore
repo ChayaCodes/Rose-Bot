@@ -48,7 +48,6 @@ whatsapp-bot-session/
 
 # Node modules
 node_modules/
-package-lock.json
 
 # IDE
 .vscode/
