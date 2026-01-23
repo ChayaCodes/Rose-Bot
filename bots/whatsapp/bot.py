@@ -247,16 +247,18 @@ class WhatsAppBot:
         # Register group join handler for welcome messages
         self.client.on_group_join(self.logic.handle_group_join)
 
-        # Start callback server
+        # Start callback server first (so we can receive ready event)
         logger.info("Starting callback server on port 5000...")
         self.client.start_callback_server()
 
-        # Check bridge status
-        if self.client.is_ready():
+        # Wait for bridge to be ready (up to 2 minutes)
+        logger.info("⏳ Waiting for WhatsApp Bridge to be ready...")
+        if self.client.wait_for_ready(timeout=120):
             logger.info("✅ WhatsApp Bridge is ready!")
             logger.info("Bot is running! Send /start to test")
         else:
-            logger.error("❌ WhatsApp Bridge is not ready!")
+            logger.error("❌ WhatsApp Bridge did not become ready in time!")
+            logger.error("Please check that the bridge.js is running and WhatsApp is authenticated")
             return
 
         # Keep running

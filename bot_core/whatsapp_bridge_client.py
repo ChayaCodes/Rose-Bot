@@ -28,6 +28,7 @@ class WhatsAppBridgeClient:
         self.event_handlers = {}
         self.flask_app = None
         self.flask_thread = None
+        self._bridge_ready = threading.Event()  # Event to wait for bridge ready signal
 
     def _request(self, method: str, path: str, json: Optional[Dict[str, Any]] = None, timeout: int = 10) -> Dict[str, Any]:
         url = f"{self.bridge_url}{path}"
@@ -45,6 +46,12 @@ class WhatsAppBridgeClient:
             event_type = data.get('type', 'message')
             logger.info(f"Webhook received: {event_type}")
             logger.info(f"Registered handlers: {len(self.message_handlers)}")
+            
+            # Handle 'ready' event from bridge
+            if event_type == 'ready':
+                logger.info("🎉 Bridge sent ready signal!")
+                self._bridge_ready.set()
+                return {'status': 'ok'}
             
             if event_type == 'message':
                 msg_data = data.get('data', {})
@@ -101,13 +108,62 @@ class WhatsAppBridgeClient:
             logger.error(f"Failed to register callback: {e}")
     
     def is_ready(self) -> bool:
-        """Check if bridge is ready"""
+        """Check if bridge is ready (via HTTP or internal flag)"""
+        # First check internal flag (set by ready event)
+        if self._bridge_ready.is_set():
+            return True
+        # Fallback to HTTP check
         try:
             data = self._request('GET', '/health', timeout=5)
-            return data.get('ready', False)
+            ready = data.get('ready', False)
+            if ready:
+                self._bridge_ready.set()
+            return ready
         except Exception as e:
-            logger.error(f"Failed to check bridge health: {e}")
+            logger.debug(f"Bridge not ready yet: {e}")
             return False
+    
+    def wait_for_ready(self, timeout: float = 120.0) -> bool:
+        """Wait for bridge to become ready.
+        
+        Args:
+            timeout: Maximum seconds to wait for bridge ready signal
+            
+        Returns:
+            True if bridge is ready, False if timeout reached
+        """
+        logger.info(f"⏳ Waiting for bridge to become ready (timeout: {timeout}s)...")
+        
+        # First, try polling the health endpoint while waiting for the event
+        start_time = time.time()
+        poll_interval = 2.0
+        
+        while time.time() - start_time < timeout:
+            # Check if we got the ready event
+            if self._bridge_ready.is_set():
+                logger.info("✅ Bridge is ready (via event)!")
+                return True
+            
+            # Try HTTP health check
+            try:
+                if self.is_ready():
+                    logger.info("✅ Bridge is ready (via health check)!")
+                    return True
+            except Exception:
+                pass
+            
+            # Wait a bit before next check, but also listen for event
+            elapsed = time.time() - start_time
+            remaining = timeout - elapsed
+            if remaining <= 0:
+                break
+            wait_time = min(poll_interval, remaining)
+            if self._bridge_ready.wait(timeout=wait_time):
+                logger.info("✅ Bridge is ready (via event)!")
+                return True
+        
+        logger.error(f"❌ Bridge did not become ready within {timeout}s")
+        return False
     
     def send_message(self, chat_id: str, message: str) -> Optional[str]:
         """Send a text message"""
