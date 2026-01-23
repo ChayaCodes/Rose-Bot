@@ -32,7 +32,8 @@ const client = new Client({
     puppeteer: {
         headless: true,
         executablePath: chromiumPath,
-        timeout: 180000,  // 3 minutes timeout
+        timeout: 180000,  // 3 minutes timeout for page operations
+        protocolTimeout: 180000,  // 3 minutes timeout for CDP protocol
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -40,7 +41,9 @@ const client = new Client({
             '--disable-gpu',
             '--no-first-run',
             '--disable-accelerated-2d-canvas',
-            '--no-zygote'
+            '--no-zygote',
+            '--single-process',  // Reduces memory usage
+            '--disable-extensions'
         ]
     }
 });
