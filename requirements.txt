@@ -16,8 +16,6 @@ qrcode[pil]
 Pillow
 
 # AI moderation (detoxify backend)
-detoxify
-torch
 openai
 python-dotenv
 
